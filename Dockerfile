@@ -6,12 +6,14 @@ WORKDIR /app
 # Build arg to bust cache when needed
 ARG CACHEBUST=1
 
+# Upgrade npm to fix "Exit handler never called" bug
+RUN npm install -g npm@11.6.2
+
 # Copy package files
 COPY package*.json ./
 
 # Install all dependencies (including devDependencies for build)
-# Use npm install instead of npm ci to work around npm ci bug in Docker
-RUN npm install --no-audit
+RUN npm ci --prefer-offline --no-audit
 
 # Copy source files
 COPY . .
