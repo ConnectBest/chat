@@ -10,7 +10,8 @@ ARG CACHEBUST=1
 COPY package*.json ./
 
 # Install all dependencies (including devDependencies for build)
-RUN npm ci --prefer-offline --no-audit
+# Use npm install instead of npm ci to work around npm ci bug in Docker
+RUN npm install --no-audit
 
 # Copy source files
 COPY . .
