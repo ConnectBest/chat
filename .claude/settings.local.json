@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(vessel build:*)"
+      "Bash(vessel build:*)",
+      "Bash(node --version)"
     ],
     "deny": [],
     "ask": []

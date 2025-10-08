@@ -96,6 +96,8 @@ jobs:
         with:
           context: .
           push: true
+          build-args: |
+            CACHEBUST=${{ github.run_number }}
           tags: |
             ${{ steps.uris.outputs.PUBLIC_URI }}:latest
             ${{ steps.uris.outputs.PUBLIC_URI }}:${{ env.IMAGE_TAG_SHA }}

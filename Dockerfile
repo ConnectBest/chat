@@ -3,11 +3,14 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Build arg to bust cache when needed
+ARG CACHEBUST=1
+
 # Copy package files
 COPY package*.json ./
 
 # Install all dependencies (including devDependencies for build)
-RUN npm ci
+RUN npm ci --prefer-offline --no-audit
 
 # Copy source files
 COPY . .
