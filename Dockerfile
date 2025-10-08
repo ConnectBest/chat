@@ -1,21 +1,38 @@
-# Small base, no cache of dev tools
-FROM python:3.12-slim
+# Build stage
+FROM node:20-alpine AS builder
 
-# Security hardening: non-root user
-RUN useradd -m appuser
 WORKDIR /app
 
-# Install runtime deps
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy package files
+COPY package*.json ./
 
-# Copy source
-COPY app ./app
+# Install dependencies
+RUN npm ci
 
-# Expose runtime port
+# Copy source files
+COPY . .
+
+# Build Next.js app
+RUN npm run build
+
+# Production stage
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+# Security hardening: non-root user
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# Copy necessary files from builder
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+
 EXPOSE 8080
 
-# Run with gunicorn (prod-ready)
-USER appuser
-ENV PYTHONUNBUFFERED=1
-CMD ["gunicorn", "-b", "0.0.0.0:8080", "app.main:app", "--workers", "2", "--threads", "4", "--timeout", "60"]
+ENV PORT=8080
+ENV HOSTNAME="0.0.0.0"
+
+CMD ["node", "server.js"]

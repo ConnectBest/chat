@@ -5,10 +5,16 @@ on:
     branches: [ "main" ]
     paths:
       - "Dockerfile"
-      - "**/*.py"
+      - "**/*.ts"
+      - "**/*.tsx"
+      - "**/*.js"
+      - "**/*.jsx"
+      - "**/*.css"
       - "app/**"
-      - "requirements.txt"
-      - ".github/workflows/ecr-public-push.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "next.config.js"
+      - "tsconfig.json"
       - ".github/workflows/ecr-dual-publish.yml"
   workflow_dispatch: {}
 
