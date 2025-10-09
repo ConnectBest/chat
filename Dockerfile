@@ -10,9 +10,9 @@ ARG CACHEBUST=1
 COPY package*.json ./
 
 # Install all dependencies (including devDependencies for build)
-# Using npm install with --ignore-scripts to avoid the npm ci bug
-RUN npm install --no-audit --loglevel=verbose && \
-    npm ls || true
+# Force use of public npm registry
+RUN npm config set registry https://registry.npmjs.org/ && \
+    npm ci --no-audit
 
 # Copy source files
 COPY . .
@@ -25,9 +25,12 @@ FROM node:20-slim AS runner
 
 WORKDIR /app
 
+# Force use of public npm registry (in case any runtime npm operations are needed)
+RUN npm config set registry https://registry.npmjs.org/
+
 # Security hardening: non-root user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
 
 # Copy necessary files from builder
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
