@@ -8,11 +8,10 @@ ARG CACHEBUST=1
 
 # Copy package files
 COPY package*.json ./
+COPY .npmrc ./
 
 # Install all dependencies (including devDependencies for build)
-# Force use of public npm registry
-RUN npm config set registry https://registry.npmjs.org/ && \
-    npm ci --no-audit
+RUN npm ci --no-audit
 
 # Copy source files
 COPY . .
@@ -24,9 +23,6 @@ RUN npm run build
 FROM node:20-slim AS runner
 
 WORKDIR /app
-
-# Force use of public npm registry (in case any runtime npm operations are needed)
-RUN npm config set registry https://registry.npmjs.org/
 
 # Security hardening: non-root user
 RUN addgroup --system --gid 1001 nodejs && \

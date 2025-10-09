@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(vessel build:*)",
-      "Bash(node --version)"
+      "Bash(node --version)",
+      "Bash(npm config get:*)",
+      "Bash(npm config set:*)",
+      "Bash(npm install)",
+      "Bash(npm install:*)"
     ],
     "deny": [],
     "ask": []
