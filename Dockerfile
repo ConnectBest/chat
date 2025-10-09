@@ -13,7 +13,7 @@ RUN npm install -g npm@11.6.2
 COPY package*.json ./
 
 # Install all dependencies (including devDependencies for build)
-RUN npm ci --prefer-offline --no-audit
+RUN npm ci --no-audit
 
 # Copy source files
 COPY . .
