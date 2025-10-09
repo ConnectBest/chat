@@ -31,6 +31,8 @@ RUN addgroup --system --gid 1001 nodejs && \
 # Copy necessary files from builder
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --chown=nextjs:nodejs start.sh ./
+RUN chmod +x start.sh
 
 USER nextjs
 
@@ -39,4 +41,4 @@ EXPOSE 8080
 ENV PORT=8080
 ENV HOSTNAME=0.0.0.0
 
-CMD ["node", "server.js"]
+CMD ["./start.sh"]
