@@ -8,10 +8,10 @@ ARG CACHEBUST=1
 
 # Copy package files
 COPY package*.json ./
-COPY .npmrc ./
 
 # Install all dependencies (including devDependencies for build)
-RUN npm ci --no-audit
+# npm install respects --registry flag better than npm ci
+RUN npm install --registry=https://registry.npmjs.org/ --no-audit
 
 # Copy source files
 COPY . .
