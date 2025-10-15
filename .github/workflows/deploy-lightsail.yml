@@ -11,7 +11,7 @@ env:
   LIGHTSAIL_SERVICE: chat-app
 
 jobs:
-  deploy:
+  build-and-push:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -35,12 +35,29 @@ jobs:
           docker build -t ${{ env.ECR_REPOSITORY }}:latest .
           docker push ${{ env.ECR_REPOSITORY }}:latest
 
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
       - name: Deploy to Lightsail
         run: |
           aws lightsail create-container-service-deployment \
             --service-name ${{ env.LIGHTSAIL_SERVICE }} \
             --region ${{ env.AWS_REGION }} \
-            --cli-input-json file://lightsail-deployment.json
+            --cli-input-json file://lightsail/deployment.json
 
       - name: Get deployment URL
         run: |

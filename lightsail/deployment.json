@@ -1,0 +1,23 @@
+{
+  "containers": {
+    "chat": {
+      "image": "839776274679.dkr.ecr.us-west-2.amazonaws.com/chat:latest",
+      "ports": {
+        "8080": "HTTP"
+      },
+      "environment": {
+        "NODE_ENV": "production",
+        "HOST": "0.0.0.0",
+        "PORT": "8080"
+      }
+    }
+  },
+  "publicEndpoint": {
+    "containerName": "chat",
+    "containerPort": 8080,
+    "healthCheck": {
+      "path": "/",
+      "intervalSeconds": 30
+    }
+  }
+}
