@@ -1,8 +1,8 @@
 #!/bin/sh
 set -e
 
-# Start Next.js in background
-npm start &
+# Start Next.js standalone server with 0.0.0.0 binding
+HOSTNAME=0.0.0.0 PORT=8080 node server.js &
 PID=$!
 
 # Wait for port to be ready (max 30 seconds)
