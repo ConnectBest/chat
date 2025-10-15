@@ -11,7 +11,8 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(aws apprunner describe-service:*)"
+      "Bash(aws apprunner describe-service:*)",
+      "Bash(chmod:*)"
     ],
     "deny": [],
     "ask": []

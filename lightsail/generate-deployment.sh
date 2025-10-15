@@ -1,3 +1,6 @@
+#!/bin/bash
+# Generate Lightsail deployment config with secrets from GitHub
+cat > lightsail/deployment.json <<EOF
 {
   "containers": {
     "chat": {
@@ -9,7 +12,7 @@
         "NODE_ENV": "production",
         "HOST": "0.0.0.0",
         "PORT": "8080",
-        "AWS_REGION": "us-west-2"
+        "MONGODB_URI": "${MONGODB_URI}"
       }
     }
   },
@@ -25,3 +28,4 @@
     }
   }
 }
+EOF

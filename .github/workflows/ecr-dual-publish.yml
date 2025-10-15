@@ -122,6 +122,8 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Deploy to Lightsail
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
         run: |
           echo "Checking deployment status..."
 
@@ -141,6 +143,9 @@ jobs:
             echo "Service state: $STATE - waiting... ($i/30)"
             sleep 10
           done
+
+          # Generate deployment config with secrets
+          ./lightsail/generate-deployment.sh
 
           # Deploy
           aws lightsail create-container-service-deployment \

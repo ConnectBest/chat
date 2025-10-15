@@ -33,6 +33,12 @@ export default function Home() {
             <div className={styles.featureText}>Seamless Integration</div>
           </div>
         </div>
+
+        <div style={{ marginTop: '2rem', fontSize: '0.9rem', opacity: 0.7 }}>
+          <a href="/api/health" target="_blank" style={{ color: 'inherit', textDecoration: 'underline' }}>
+            System Health Check
+          </a>
+        </div>
       </div>
     </div>
   )
