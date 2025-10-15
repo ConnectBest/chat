@@ -13,7 +13,11 @@ export async function getMongoClient(): Promise<MongoClient> {
   }
 
   if (!clientPromise) {
-    clientPromise = MongoClient.connect(process.env.MONGODB_URI);
+    clientPromise = MongoClient.connect(process.env.MONGODB_URI, {
+      tls: true,
+      tlsAllowInvalidCertificates: false,
+      tlsAllowInvalidHostnames: false,
+    });
   }
 
   client = await clientPromise;

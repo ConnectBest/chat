@@ -24,6 +24,11 @@ FROM node:20-slim AS runner
 
 WORKDIR /app
 
+# Install OpenSSL for MongoDB SSL connections
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends openssl ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
 # Security hardening: non-root user
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
