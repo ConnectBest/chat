@@ -123,10 +123,33 @@ jobs:
 
       - name: Deploy to Lightsail
         run: |
+          echo "Checking deployment status..."
+
+          # Wait for any in-progress deployment to complete (max 5 minutes)
+          for i in $(seq 1 30); do
+            STATE=$(aws lightsail get-container-services \
+              --service-name ${{ env.LIGHTSAIL_SERVICE }} \
+              --region ${{ env.AWS_REGION }} \
+              --query 'containerServices[0].state' \
+              --output text)
+
+            if [ "$STATE" = "RUNNING" ] || [ "$STATE" = "READY" ]; then
+              echo "Service is ready for deployment"
+              break
+            fi
+
+            echo "Service state: $STATE - waiting... ($i/30)"
+            sleep 10
+          done
+
+          # Deploy
           aws lightsail create-container-service-deployment \
             --service-name ${{ env.LIGHTSAIL_SERVICE }} \
             --region ${{ env.AWS_REGION }} \
-            --cli-input-json file://lightsail/deployment.json
+            --cli-input-json file://lightsail/deployment.json || {
+              echo "Deployment failed, checking if already in progress..."
+              exit 1
+            }
 
       - name: Get deployment URL
         run: |
