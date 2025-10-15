@@ -2,7 +2,7 @@
 set -e
 
 # Start Next.js in background
-node server.js &
+npm start &
 PID=$!
 
 # Wait for port to be ready (max 30 seconds)
