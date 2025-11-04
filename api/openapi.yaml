@@ -33,12 +33,16 @@ tags:
   - name: ops
     description: Operations and observability endpoints (health, metrics).
 
+security:
+  - bearerAuth: []
+
 paths:
   /healthz:
     get:
       operationId: getHealthz
       tags: [ops]
       summary: Liveness probe
+      security: []
       responses:
         '200':
           description: OK
@@ -50,6 +54,11 @@ paths:
           description: Bad request
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     Healthz:
       type: object
