@@ -2,16 +2,15 @@ openapi: 3.0.3
 info:
   title: Chat Enterprise API
   version: 0.1.0
-  description: |
-    OpenAPI spec for a Slack-like real-time chat platform.
-    Scope covers CMPE-272/273 requirements: auth (SSO + 2FA), channels/DM, messaging,
-    threads, reactions, file sharing & search, presence/typing, admin moderation,
-    observability/health, and BI hooks.
+  description: Basic OpenAPI skeleton for the chat project.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
 servers:
-  - url: https://api.local.chat.dev/v1
-    description: Local/dev server
-  - url: https://api.chat.example.com/v1
-    description: Staging/production server
+  - url: https://api.connectbest.dev/v1
+    description: Production
+  - url: https://staging.connectbest.dev/v1
+    description: Staging
 tags:
   - name: auth
     description: Authentication, SSO, and 2FA endpoints.
@@ -55,5 +54,11 @@ components:
     Healthz:
       type: object
       properties:
-        status: { type: string, example: ok }
-        timestamp: { type: string, format: date-time }
+        status:
+          type: string
+          description: Service health status.
+          example: ok
+        timestamp:
+          type: string
+          format: date-time
+          description: RFC 3339 timestamp when the check was generated.
