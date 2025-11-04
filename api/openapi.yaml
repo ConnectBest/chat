@@ -28,6 +28,7 @@ tags:
 paths:
   /healthz:
     get:
+      operationId: getHealthz
       tags: [ops]
       summary: Liveness probe
       responses:
@@ -37,6 +38,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Healthz'
+        '400':
+          description: Bad request
 
 components:
   schemas:
