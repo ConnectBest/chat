@@ -1,0 +1,47 @@
+openapi: 3.0.3
+info:
+  title: Chat Enterprise API
+  version: 0.1.0
+  description: |
+    OpenAPI spec for a Slack-like real-time chat platform.
+    Scope covers CMPE-272/273 requirements: auth (SSO + 2FA), channels/DM, messaging,
+    threads, reactions, file sharing & search, presence/typing, admin moderation,
+    observability/health, and BI hooks.
+servers:
+  - url: https://api.local.chat.dev/v1
+    description: Local/dev server
+  - url: https://api.chat.example.com/v1
+    description: Staging/production server
+tags:
+  - name: auth
+    description: Authentication, SSO, 2FA
+  - name: users
+  - name: channels
+  - name: dms
+  - name: messages
+  - name: files
+  - name: search
+  - name: presence
+  - name: admin
+  - name: ops
+
+paths:
+  /healthz:
+    get:
+      tags: [ops]
+      summary: Liveness probe
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Healthz'
+
+components:
+  schemas:
+    Healthz:
+      type: object
+      properties:
+        status: { type: string, example: ok }
+        timestamp: { type: string, format: date-time }
