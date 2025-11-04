@@ -1,0 +1,73 @@
+erDiagram
+  USERS ||--o{ CHANNEL_MEMBERS : has
+  USERS ||--o{ MESSAGES : writes
+  USERS ||--o{ REACTIONS : reacts
+  CHANNELS ||--o{ MESSAGES : contains
+  CHANNELS ||--o{ CHANNEL_MEMBERS : has
+  MESSAGES ||--o{ THREADS : has
+  MESSAGES ||--o{ MESSAGE_FILES : attaches
+  FILES ||--o{ MESSAGE_FILES : linked
+
+  USERS {
+    uuid id PK
+    text display_name
+    text email
+    text avatar_url
+    timestamp created_at
+    boolean email_verified
+  }
+
+  CHANNELS {
+    uuid id PK
+    text name
+    text topic
+    boolean is_private
+    uuid created_by FK -> USERS.id
+    timestamp created_at
+    timestamp archived_at
+  }
+
+  CHANNEL_MEMBERS {
+    uuid user_id FK -> USERS.id
+    uuid channel_id FK -> CHANNELS.id
+    timestamp joined_at
+    PK (user_id, channel_id)
+  }
+
+  MESSAGES {
+    uuid id PK
+    uuid channel_id FK -> CHANNELS.id
+    uuid author_id FK -> USERS.id
+    text text
+    uuid parent_id  "nullable - thread root"
+    timestamp created_at
+    timestamp edited_at
+  }
+
+  THREADS {
+    uuid parent_id FK -> MESSAGES.id
+    uuid reply_id  FK -> MESSAGES.id
+    PK (parent_id, reply_id)
+  }
+
+  FILES {
+    uuid id PK
+    text filename
+    text mime_type
+    int size_bytes
+    text storage_url
+    text status  "uploaded|processing|ready|failed"
+  }
+
+  MESSAGE_FILES {
+    uuid message_id FK -> MESSAGES.id
+    uuid file_id    FK -> FILES.id
+    PK (message_id, file_id)
+  }
+
+  REACTIONS {
+    uuid message_id FK -> MESSAGES.id
+    uuid user_id    FK -> USERS.id
+    text emoji
+    PK (message_id, user_id, emoji)
+  }
