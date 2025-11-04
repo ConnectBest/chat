@@ -52,6 +52,86 @@ paths:
                 $ref: '#/components/schemas/Healthz'
         '400':
           description: Bad request
+  /auth/email/verify/request:
+    post:
+      operationId: requestEmailVerification
+      tags: [auth]
+      summary: Send email verification link to the current user
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '204':
+          description: Email verification link sent successfully
+        '401':
+          description: Unauthorized – invalid or missing token
+
+  /auth/email/verify/confirm:
+    post:
+      operationId: confirmEmailVerification
+      tags: [auth]
+      summary: Confirm email verification using the token from the email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+                  description: Verification token from the email link
+      responses:
+        '204':
+          description: Email verified successfully
+        '400':
+          description: Invalid or expired token
+
+  /auth/password/forgot:
+    post:
+      operationId: requestPasswordReset
+      tags: [auth]
+      summary: Request password reset link via email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: User's registered email address
+      responses:
+        '204':
+          description: Password reset email sent successfully
+
+  /auth/password/reset:
+    post:
+      operationId: resetPassword
+      tags: [auth]
+      summary: Reset password using the reset token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, newPassword]
+              properties:
+                token:
+                  type: string
+                  description: Reset token received by email
+                newPassword:
+                  type: string
+                  minLength: 8
+                  description: New password to set
+      responses:
+        '204':
+          description: Password reset successful
+        '400':
+          description: Invalid or expired token
 
 components:
   securitySchemes:
