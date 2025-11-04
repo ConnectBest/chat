@@ -13,8 +13,8 @@ erDiagram
     text display_name
     text email
     text avatar_url
-    timestamp created_at
     boolean email_verified
+    datetime created_at
   }
 
   CHANNELS {
@@ -22,32 +22,30 @@ erDiagram
     text name
     text topic
     boolean is_private
-    uuid created_by FK -> USERS.id
-    timestamp created_at
-    timestamp archived_at
+    uuid created_by FK
+    datetime created_at
+    datetime archived_at
   }
 
   CHANNEL_MEMBERS {
-    uuid user_id FK -> USERS.id
-    uuid channel_id FK -> CHANNELS.id
-    timestamp joined_at
-    PK (user_id, channel_id)
+    uuid user_id FK
+    uuid channel_id FK
+    datetime joined_at
   }
 
   MESSAGES {
     uuid id PK
-    uuid channel_id FK -> CHANNELS.id
-    uuid author_id FK -> USERS.id
+    uuid channel_id FK
+    uuid author_id FK
     text text
-    uuid parent_id  "nullable - thread root"
-    timestamp created_at
-    timestamp edited_at
+    uuid parent_id
+    datetime created_at
+    datetime edited_at
   }
 
   THREADS {
-    uuid parent_id FK -> MESSAGES.id
-    uuid reply_id  FK -> MESSAGES.id
-    PK (parent_id, reply_id)
+    uuid parent_id FK
+    uuid reply_id FK
   }
 
   FILES {
@@ -56,18 +54,16 @@ erDiagram
     text mime_type
     int size_bytes
     text storage_url
-    text status  "uploaded|processing|ready|failed"
+    text status
   }
 
   MESSAGE_FILES {
-    uuid message_id FK -> MESSAGES.id
-    uuid file_id    FK -> FILES.id
-    PK (message_id, file_id)
+    uuid message_id FK
+    uuid file_id FK
   }
 
   REACTIONS {
-    uuid message_id FK -> MESSAGES.id
-    uuid user_id    FK -> USERS.id
+    uuid message_id FK
+    uuid user_id FK
     text emoji
-    PK (message_id, user_id, emoji)
   }
