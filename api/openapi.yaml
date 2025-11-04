@@ -14,16 +14,25 @@ servers:
     description: Staging/production server
 tags:
   - name: auth
-    description: Authentication, SSO, 2FA
+    description: Authentication, SSO, and 2FA endpoints.
   - name: users
+    description: User profile and identity endpoints.
   - name: channels
+    description: Channel CRUD and membership management.
   - name: dms
+    description: Direct message conversations between users.
   - name: messages
+    description: Post, list, thread replies, and reactions.
   - name: files
+    description: File upload, metadata, and delivery.
   - name: search
+    description: Search across messages and channels.
   - name: presence
+    description: Online status and typing indicators.
   - name: admin
+    description: Administrative actions such as user suspension.
   - name: ops
+    description: Operations and observability endpoints (health, metrics).
 
 paths:
   /healthz:
