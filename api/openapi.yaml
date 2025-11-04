@@ -132,6 +132,35 @@ paths:
           description: Password reset successful
         '400':
           description: Invalid or expired token
+  /ws:
+    get:
+      operationId: websocketHandshake
+      tags: [messages]
+      summary: WebSocket handshake (upgrade HTTP to WS)
+      description: |
+        **Protocol:** Use `wss://` in production environments for security.  
+        **Authentication:**  
+        During the HTTP upgrade request, clients must include an `Authorization: Bearer <JWT>` header.  
+        The server will validate the token and associate the connection with the authenticated user ID.
+
+        **Client → Server JSON messages:**
+        - `{"type": "join", "channelId": "<id>"}`
+        - `{"type": "typing", "channelId": "<id>", "isTyping": true}`
+        - `{"type": "message", "channelId": "<id>", "text": "Hello world!"}`
+
+        **Server → Client JSON messages:**
+        - `{"type": "presence", "userId": "u1", "status": "online"}`
+        - `{"type": "message", "id": "m1", "channelId": "<id>", "text": "Hello world!", "authorId": "u1"}`
+        - `{"type": "typing", "userId": "u1", "channelId": "<id>", "isTyping": true}`
+
+        This WebSocket connection enables real-time messaging, presence updates,  
+        typing indicators, and file upload notifications between clients.
+
+      responses:
+        '101':
+          description: Switching Protocols — successfully upgraded to WebSocket
+        '401':
+          description: Unauthorized — missing or invalid JWT token
 
 components:
   securitySchemes:
