@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 WORKDIR /app
-COPY app/requirements.txt .
+COPY worker/requirements.txt .
 RUN pip install -r requirements.txt
-COPY app ./app
-CMD ["uvicorn","app.main:app","--host","0.0.0.0","--port","8000"]
+COPY worker ./worker
+CMD ["python","-m","worker.main"]
