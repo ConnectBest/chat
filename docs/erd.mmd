@@ -7,6 +7,7 @@ erDiagram
   MESSAGES ||--o{ THREADS : has
   MESSAGES ||--o{ MESSAGE_FILES : attaches
   FILES ||--o{ MESSAGE_FILES : linked
+  MESSAGES ||--o{ MESSAGE_EMBEDDINGS : has
 
   USERS {
     uuid id PK
@@ -22,21 +23,21 @@ erDiagram
     text name
     text topic
     boolean is_private
-    uuid created_by FK
+    uuid created_by
     datetime created_at
     datetime archived_at
   }
 
   CHANNEL_MEMBERS {
-    uuid user_id FK
-    uuid channel_id FK
+    uuid user_id
+    uuid channel_id
     datetime joined_at
   }
 
   MESSAGES {
     uuid id PK
-    uuid channel_id FK
-    uuid author_id FK
+    uuid channel_id
+    uuid author_id
     text text
     uuid parent_id
     datetime created_at
@@ -44,8 +45,8 @@ erDiagram
   }
 
   THREADS {
-    uuid parent_id FK
-    uuid reply_id FK
+    uuid parent_id
+    uuid reply_id
   }
 
   FILES {
@@ -58,12 +59,20 @@ erDiagram
   }
 
   MESSAGE_FILES {
-    uuid message_id FK
-    uuid file_id FK
+    uuid message_id
+    uuid file_id
   }
 
   REACTIONS {
-    uuid message_id FK
-    uuid user_id FK
+    uuid message_id
+    uuid user_id
     text emoji
+  }
+
+  MESSAGE_EMBEDDINGS {
+    uuid message_id PK
+    text model
+    int dims
+    text embedding
+    datetime created_at
   }
