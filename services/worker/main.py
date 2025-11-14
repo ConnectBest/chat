@@ -1,5 +1,5 @@
 import os, json, pika
-from .ffmpeg import transcode
+from ffmpeg import transcode
 def consume():
     params = pika.URLParameters(f"amqp://{os.getenv('RABBITMQ_DEFAULT_USER')}:{os.getenv('RABBITMQ_DEFAULT_PASS')}@rabbitmq:5672/")
     conn = pika.BlockingConnection(params)
