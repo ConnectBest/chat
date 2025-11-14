@@ -33,12 +33,16 @@ services:
       mc anonymous set download local/${S3_BUCKET};
       "
   api:
-    build: ../services/api
+    build:
+      context: ../services/api
+      dockerfile: Dockerfile
     env_file: .env
     depends_on: [postgres, redis, rabbitmq, minio, create-bucket]
     ports: [ "${API_PORT}:8000" ]
   worker:
-    build: ../services/worker
+    build:
+      context: ../services/worker
+      dockerfile: Dockerfile
     env_file: .env
     depends_on: [rabbitmq, minio]
 volumes:
