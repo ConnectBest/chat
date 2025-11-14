@@ -1,8 +1,10 @@
 import os, json, pika
 from ffmpeg import transcode
 def consume():
+    print("worker starting...")
     params = pika.URLParameters(f"amqp://{os.getenv('RABBITMQ_DEFAULT_USER')}:{os.getenv('RABBITMQ_DEFAULT_PASS')}@rabbitmq:5672/")
     conn = pika.BlockingConnection(params)
+    print("worker connected to rabbitmq")
     ch = conn.channel()
     ch.queue_declare(queue="encode")
     def handler(chx, method, props, body):
