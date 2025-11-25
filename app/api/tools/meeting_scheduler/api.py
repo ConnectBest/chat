@@ -33,6 +33,9 @@ load_dotenv()
 # Gmail OAuth Configuration
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "cortona93@gmail.com")
 SCOPES = ["https://www.googleapis.com/auth/gmail.send"]
+GMAIL_CLIENT_ID = os.getenv("GMAIL_CLIENT_ID")
+GMAIL_CLIENT_SECRET = os.getenv("GMAIL_CLIENT_SECRET")
+GMAIL_REFRESH_TOKEN = os.getenv("GMAIL_REFRESH_TOKEN")
 
 # Zoom Server-to-Server OAuth Configuration
 ZOOM_CLIENT_ID = os.getenv("ZOOM_CLIENT_ID")
@@ -78,7 +81,7 @@ class MeetingResponse(BaseModel):
 # Helper Functions
 def get_gmail_creds(host_email: str = None):
     """
-    Get Gmail API credentials using OAuth 2.0.
+    Get Gmail API credentials using OAuth 2.0 from environment variables.
     
     Args:
         host_email: Optional host email for logging purposes
@@ -86,40 +89,25 @@ def get_gmail_creds(host_email: str = None):
     Returns:
         Credentials object for Gmail API
     """
-    token_path = os.path.join(os.path.dirname(__file__), "token.json")
-    client_secret_path = os.path.join(os.path.dirname(__file__), "client_secret.json")
-    
-    if os.path.exists(token_path):
-        creds = Credentials.from_authorized_user_file(token_path, SCOPES)
-        if creds and creds.valid:
-            return creds
-        if creds and creds.expired and creds.refresh_token:
-            from google.auth.transport.requests import Request
-            creds.refresh(Request())
-            with open(token_path, "w") as f:
-                f.write(creds.to_json())
-            return creds
-    
-    if not os.path.exists(client_secret_path):
-        raise FileNotFoundError(
-            "client_secret.json not found! "
-            "Please download OAuth 2.0 credentials from Google Cloud Console"
+    if not all([GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN]):
+        raise ValueError(
+            "Gmail OAuth credentials not configured. "
+            "Please set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REFRESH_TOKEN environment variables"
         )
     
-    flow = InstalledAppFlow.from_client_secrets_file(
-        client_secret_path, 
-        SCOPES,
-        redirect_uri='http://localhost:8080/'
+    # Create credentials from environment variables
+    creds = Credentials(
+        token=None,
+        refresh_token=GMAIL_REFRESH_TOKEN,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=GMAIL_CLIENT_ID,
+        client_secret=GMAIL_CLIENT_SECRET,
+        scopes=SCOPES
     )
     
-    creds = flow.run_local_server(
-        port=8080,
-        access_type='offline',
-        prompt='consent'
-    )
-    
-    with open(token_path, "w") as f:
-        f.write(creds.to_json())
+    # Refresh the token to get a valid access token
+    from google.auth.transport.requests import Request
+    creds.refresh(Request())
     
     return creds
 
@@ -441,10 +429,8 @@ async def schedule_meeting(request: MeetingRequest):
 def health_check():
     """Check service health and configuration."""
     config_status = {
-        "gmail_configured": bool(SENDER_EMAIL),
-        "zoom_configured": all([ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET, ZOOM_ACCOUNT_ID]),
-        "client_secret_exists": os.path.exists(os.path.join(os.path.dirname(__file__), "client_secret.json")),
-        "token_exists": os.path.exists(os.path.join(os.path.dirname(__file__), "token.json"))
+        "gmail_configured": all([SENDER_EMAIL, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN]),
+        "zoom_configured": all([ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET, ZOOM_ACCOUNT_ID])
     }
     
     return {
