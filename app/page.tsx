@@ -1,6 +1,12 @@
-import styles from './page.module.css'
+"use client";
+
+import { Button } from "@/components/ui/button";
+import { useAuthActions } from '@convex-dev/auth/react';
+import styles from './page.module.css';
 
 export default function Home() {
+  const { signOut } = useAuthActions();
+
   return (
     <div className={styles.particles}>
       <div className={styles.particle}></div>
@@ -12,6 +18,11 @@ export default function Home() {
       <div className={styles.particle}></div>
       <div className={styles.particle}></div>
       <div className={styles.particle}></div>
+
+      <Button onClick={() => signOut()}>
+        Sign out!
+      </Button>
+
 
       <div className={styles.container}>
         <div className={styles.logo}>🧠✨</div>
