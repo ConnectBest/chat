@@ -1,23 +1,68 @@
-from fastapi import FastAPI, HTTPException
+"""
+Real-time Semantic Search API for Slack Messages
+
+Provides instant search results as user types each character.
+Uses MongoDB Atlas Vector Search for semantic matching.
+"""
+
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from pymongo import MongoClient
 from pymongo.server_api import ServerApi
 from sentence_transformers import SentenceTransformer
-from typing import List, Optional
+from typing import List, Optional, AsyncGenerator
 from datetime import datetime
+from contextlib import asynccontextmanager
 import os
-from dotenv import load_dotenv
+import time
 
-load_dotenv()
+# Configuration
+MONGO_URI = os.getenv("MONGO_URI")
+DATABASE_NAME = "connectbest_chat"
+VECTOR_INDEX_NAME = "vector_index"
+EMBEDDING_FIELD = "embedding"
+
+# Global state
+mongo_client = None
+db = None
+embedding_model = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Initialize and cleanup resources."""
+    global mongo_client, db, embedding_model
+    
+    if not MONGO_URI:
+        raise ValueError("MONGO_URI environment variable must be set")
+    
+    # Connect to MongoDB
+    print("🔌 Connecting to MongoDB...")
+    mongo_client = MongoClient(MONGO_URI, server_api=ServerApi('1'))
+    db = mongo_client[DATABASE_NAME]
+    print("✅ MongoDB connected")
+    
+    # Load embedding model
+    print("📦 Loading embedding model...")
+    embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+    print("✅ Embedding model loaded")
+    
+    yield
+    
+    # Cleanup
+    if mongo_client:
+        mongo_client.close()
+        print("👋 MongoDB connection closed")
+
 
 app = FastAPI(
-    title="ConnectBest Semantic Search API",
-    description="Semantic search API using Pinecone",
-    version="2.0.0"
+    title="Real-time Semantic Search API",
+    description="Instant search as you type using MongoDB Atlas Vector Search",
+    version="1.0.0",
+    lifespan=lifespan
 )
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -26,70 +71,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global variables
-mongo_client = None
-db = None
-embedding_model = None
 
-# MongoDB Atlas Vector Search Configuration
-VECTOR_INDEX_NAME = "vector_index"
-VECTOR_FIELD_NAME = "embedding"
+# =============================================================================
+# MODELS
+# =============================================================================
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize connections on startup."""
-    global mongo_client, db, embedding_model
-    
-    mongo_uri = os.getenv("MONGO_URI")
-    
-    if not mongo_uri:
-        raise ValueError("MONGO_URI must be set")
-    
-    # Connect to MongoDB
-    mongo_client = MongoClient(mongo_uri, server_api=ServerApi('1'))
-    db = mongo_client["connectbest_chat"]
-    
-    # Load embedding model
-    print("Loading SentenceTransformer model...")
-    embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
-    print("Model loaded successfully.")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Close connections on shutdown."""
-    if mongo_client:
-        mongo_client.close()
-
-
-# Pydantic models
-class SearchRequest(BaseModel):
-    username: str = Field(..., description="Username or display name of the user")
-    query: str = Field(..., description="Natural language search query", min_length=1)
-    top_k: int = Field(5, description="Number of top results to return", ge=1, le=50)
-
-
-class MessageResult(BaseModel):
+class SearchResult(BaseModel):
     message_id: str
     text: str
-    created_at: str
     author_name: str
     channel_name: str
-    similarity_score: float
+    created_at: str
+    score: float
 
 
 class SearchResponse(BaseModel):
-    username: str
     query: str
-    accessible_channels: int
-    total_messages_searched: int # Approximate
-    results: List[MessageResult]
-    top_k: int
+    results: List[SearchResult]
+    count: int
+    search_time_ms: float
 
 
-# Helper functions
-def get_user_id_by_name(username: str) -> Optional[str]:
-    """Get user ID by username or display name."""
+# =============================================================================
+# HELPERS
+# =============================================================================
+
+def get_user_id(username: str) -> Optional[str]:
+    """Get user ID from username or display name."""
     user = db.users.find_one({
         "$or": [
             {"username": username},
@@ -99,133 +107,152 @@ def get_user_id_by_name(username: str) -> Optional[str]:
     return user["id"] if user else None
 
 
-# API Endpoints
+def get_user_channels(user_id: str) -> List[str]:
+    """Get list of channel IDs the user has access to."""
+    memberships = db.channel_members.find({"user_id": user_id})
+    return [m["channel_id"] for m in memberships]
+
+
+def search_messages(query: str, channel_ids: List[str], limit: int = 10) -> List[dict]:
+    """
+    Perform vector search on message_embeddings collection.
+    Returns matching messages with author and channel info.
+    
+    Note: message_embeddings doesn't have channel_id, so we join with messages first
+    then filter by channel access.
+    """
+    if not query.strip():
+        return []
+    
+    # Generate embedding for query
+    query_embedding = embedding_model.encode(query).tolist()
+    
+    # Vector search pipeline - join with messages first to get channel_id
+    pipeline = [
+        {
+            "$vectorSearch": {
+                "index": VECTOR_INDEX_NAME,
+                "path": EMBEDDING_FIELD,
+                "queryVector": query_embedding,
+                "numCandidates": 200,
+                "limit": 100  # Get more to filter by channel
+            }
+        },
+        {
+            "$addFields": {
+                "score": {"$meta": "vectorSearchScore"}
+            }
+        },
+        # Join with messages to get text and channel_id
+        {
+            "$lookup": {
+                "from": "messages",
+                "localField": "message_id",
+                "foreignField": "id",
+                "as": "msg"
+            }
+        },
+        {"$unwind": "$msg"},
+        # Filter by user's accessible channels (using msg.channel_id)
+        {
+            "$match": {
+                "msg.channel_id": {"$in": channel_ids}
+            }
+        },
+        # Join with users to get author name
+        {
+            "$lookup": {
+                "from": "users",
+                "localField": "msg.author_id",
+                "foreignField": "id",
+                "as": "author"
+            }
+        },
+        # Join with channels to get channel name
+        {
+            "$lookup": {
+                "from": "channels",
+                "localField": "msg.channel_id",
+                "foreignField": "id",
+                "as": "channel"
+            }
+        },
+        # Project final shape
+        {
+            "$project": {
+                "_id": 0,
+                "message_id": 1,
+                "text": "$msg.text",
+                "author_name": {"$ifNull": [{"$arrayElemAt": ["$author.display_name", 0]}, "Unknown"]},
+                "channel_name": {"$ifNull": [{"$arrayElemAt": ["$channel.name", 0]}, "Unknown"]},
+                "created_at": "$msg.created_at",
+                "score": 1
+            }
+        },
+        {"$limit": limit}
+    ]
+    
+    results = list(db.message_embeddings.aggregate(pipeline))
+    
+    # Format dates
+    for r in results:
+        if isinstance(r.get("created_at"), datetime):
+            r["created_at"] = r["created_at"].isoformat()
+        else:
+            r["created_at"] = str(r.get("created_at", ""))
+    
+    return results
+
+
+# =============================================================================
+# ENDPOINTS
+# =============================================================================
+
 @app.get("/health")
-async def health_check():
+async def health():
     """Health check endpoint."""
     return {
         "status": "healthy",
-        "backend": "mongodb_atlas_vector_search",
+        "service": "semantic-search",
+        "database": "connected" if db is not None else "disconnected",
         "model": "all-MiniLM-L6-v2"
     }
 
 
-@app.post("/api/semantic-search", response_model=SearchResponse)
-async def semantic_search(request: SearchRequest):
+@app.api_route("/api/semantic-search", methods=["GET", "POST"], response_model=SearchResponse)
+async def semantic_search(
+    q: str = Query(..., min_length=1, description="Search query"),
+    username: str = Query(..., description="Username for access control"),
+    limit: int = Query(10, ge=1, le=50, description="Max results")
+):
     """
-    Perform semantic search using Pinecone.
+    Semantic search endpoint - call on every keystroke for typeahead.
+    Supports both GET and POST methods.
     """
-    try:
-        # Get user ID
-        user_id = get_user_id_by_name(request.username)
-        if not user_id:
-            raise HTTPException(
-                status_code=404,
-                detail=f"User '{request.username}' not found"
-            )
-        
-        # Get all channels the user is a member of
-        user_channels = db.channel_members.find({"user_id": user_id})
-        channel_ids = [member["channel_id"] for member in user_channels]
-        
-        if not channel_ids:
-            raise HTTPException(
-                status_code=404,
-                detail=f"User '{request.username}' is not a member of any channels"
-            )
-        
-        # Generate query embedding
-        query_embedding = embedding_model.encode(request.query).tolist()
-        
-        # MongoDB Atlas Vector Search aggregation pipeline
-        pipeline = [
-            {
-                "$vectorSearch": {
-                    "index": VECTOR_INDEX_NAME,
-                    "path": VECTOR_FIELD_NAME,
-                    "queryVector": query_embedding,
-                    "numCandidates": request.top_k * 10,  # Overrequest for better results
-                    "limit": request.top_k,
-                    "filter": {
-                        "channel_id": {"$in": channel_ids}
-                    }
-                }
-            },
-            {
-                "$addFields": {
-                    "similarity_score": {"$meta": "vectorSearchScore"}
-                }
-            },
-            {
-                "$lookup": {
-                    "from": "users",
-                    "localField": "author_id",
-                    "foreignField": "id",
-                    "as": "author_info"
-                }
-            },
-            {
-                "$lookup": {
-                    "from": "channels",
-                    "localField": "channel_id",
-                    "foreignField": "id",
-                    "as": "channel_info"
-                }
-            },
-            {
-                "$project": {
-                    "message_id": "$id",
-                    "text": 1,
-                    "created_at": 1,
-                    "author_name": {
-                        "$ifNull": [
-                            {"$arrayElemAt": ["$author_info.display_name", 0]},
-                            "Unknown"
-                        ]
-                    },
-                    "channel_name": {
-                        "$ifNull": [
-                            {"$arrayElemAt": ["$channel_info.name", 0]},
-                            "Unknown"
-                        ]
-                    },
-                    "similarity_score": 1,
-                    "_id": 0
-                }
-            }
-        ]
-        
-        # Execute aggregation pipeline
-        search_results = list(db.messages.aggregate(pipeline))
-        
-        results = []
-        for doc in search_results:
-            results.append({
-                "message_id": doc.get('message_id', ''),
-                "text": doc.get('text', ''),
-                "created_at": doc.get('created_at', ''),
-                "author_name": doc.get('author_name', 'Unknown'),
-                "channel_name": doc.get('channel_name', 'Unknown'),
-                "similarity_score": doc.get('similarity_score', 0.0)
-            })
-        
-        return SearchResponse(
-            username=request.username,
-            query=request.query,
-            accessible_channels=len(channel_ids),
-            total_messages_searched=1000, # Placeholder, Pinecone doesn't give total scanned easily
-            results=results,
-            top_k=request.top_k
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Error: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Internal server error: {str(e)}"
-        )
+    import time
+    start = time.time()
+    
+    # Get user and their channels
+    user_id = get_user_id(username)
+    if not user_id:
+        raise HTTPException(status_code=404, detail=f"User '{username}' not found")
+    
+    channel_ids = get_user_channels(user_id)
+    if not channel_ids:
+        raise HTTPException(status_code=404, detail="User has no channel access")
+    
+    # Perform search
+    results = search_messages(q, channel_ids, limit)
+    
+    search_time = (time.time() - start) * 1000
+    
+    return SearchResponse(
+        query=q,
+        results=results,
+        count=len(results),
+        search_time_ms=round(search_time, 2)
+    )
+
 
 if __name__ == "__main__":
     import uvicorn

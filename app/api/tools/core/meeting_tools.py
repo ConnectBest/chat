@@ -1,32 +1,14 @@
-"""
-Meeting Scheduler API
-
-A production-ready FastAPI microservice for scheduling Zoom meetings and sending
-Gmail invitations with optional user lookup integration.
-
-Features:
-- Zoom meeting creation via Server-to-Server OAuth
-- Gmail invitation sending via OAuth 2.0
-- User lookup integration for name-based participant resolution
-- Email validation and status tracking
-- Comprehensive error handling
-"""
-
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field, EmailStr
 from typing import List, Dict, Optional
 from datetime import datetime
 import os
-import json
-import requests
 import base64
-from email.message import EmailMessage
+import requests
 import re
+from email.message import EmailMessage
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-import httpx
 from dotenv import load_dotenv
+from .data_tools import find_users, get_user_scope
 
 load_dotenv()
 
@@ -43,59 +25,11 @@ ZOOM_CLIENT_SECRET = os.getenv("ZOOM_CLIENT_SECRET")
 ZOOM_ACCOUNT_ID = os.getenv("ZOOM_ACCOUNT_ID")
 ZOOM_USER_ID = os.getenv("ZOOM_USER_ID", "me")
 
-# Request/Response Models
-class MeetingRequest(BaseModel):
-    topic: str = Field(..., description="Meeting topic/title")
-    participant_emails: Optional[List[EmailStr]] = Field(default=[], description="List of participant email addresses")
-    participant_names: Optional[List[str]] = Field(default=[], description="List of participant names to lookup")
-    requesting_user_id: str = Field(..., description="ID of the user making the request (for scope check)")
-    host_email: EmailStr = Field(..., description="Host email address (sender)")
-    start_time: datetime = Field(..., description="Meeting start time (ISO 8601 format)")
-    duration_minutes: int = Field(60, ge=1, le=1440, description="Meeting duration in minutes (1-1440)")
-
-class MeetingDetails(BaseModel):
-    platform: str
-    topic: str
-    meeting_id: str
-    password: str
-    join_url: str
-    start_time: str
-    duration: int
-    host_email: Optional[str]
-    timezone: str
-
-class EmailStatus(BaseModel):
-    total: int
-    successful: int
-    failed: int
-    failed_emails: List[str]
-
-class MeetingResponse(BaseModel):
-    success: bool
-    meeting: Optional[MeetingDetails]
-    email_status: Optional[EmailStatus]
-    valid_emails: List[str]
-    invalid_emails: List[str]
-    message: str
-
-# Helper Functions
 def get_gmail_creds(host_email: str = None):
-    """
-    Get Gmail API credentials using OAuth 2.0 from environment variables.
-    
-    Args:
-        host_email: Optional host email for logging purposes
-    
-    Returns:
-        Credentials object for Gmail API
-    """
+    """Get Gmail API credentials using OAuth 2.0."""
     if not all([GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN]):
-        raise ValueError(
-            "Gmail OAuth credentials not configured. "
-            "Please set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REFRESH_TOKEN environment variables"
-        )
+        raise ValueError("Gmail OAuth credentials not configured.")
     
-    # Create credentials from environment variables
     creds = Credentials(
         token=None,
         refresh_token=GMAIL_REFRESH_TOKEN,
@@ -105,12 +39,9 @@ def get_gmail_creds(host_email: str = None):
         scopes=SCOPES
     )
     
-    # Refresh the token to get a valid access token
     from google.auth.transport.requests import Request
     creds.refresh(Request())
-    
     return creds
-
 
 def validate_email(email: str) -> bool:
     """Validate email address format."""
@@ -119,9 +50,8 @@ def validate_email(email: str) -> bool:
     email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return bool(re.match(email_regex, email))
 
-
 def validate_email_list(emails: List[str]) -> tuple:
-    """Validate a list of email addresses. Returns (valid_emails, invalid_emails)"""
+    """Validate a list of email addresses."""
     valid = []
     invalid = []
     for email in emails:
@@ -132,11 +62,10 @@ def validate_email_list(emails: List[str]) -> tuple:
             invalid.append(email)
     return valid, invalid
 
-
 def get_zoom_access_token() -> str:
     """Get Zoom access token using Server-to-Server OAuth."""
     if not all([ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET, ZOOM_ACCOUNT_ID]):
-        raise ValueError("Zoom credentials not configured. Please set ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET, and ZOOM_ACCOUNT_ID")
+        raise ValueError("Zoom credentials not configured.")
     
     credentials = f"{ZOOM_CLIENT_ID}:{ZOOM_CLIENT_SECRET}"
     b64_credentials = base64.b64encode(credentials.encode()).decode()
@@ -152,36 +81,31 @@ def get_zoom_access_token() -> str:
     token_resp.raise_for_status()
     return token_resp.json()["access_token"]
 
-
-async def resolve_participants(names: List[str], requesting_user_id: str) -> List[str]:
-    """
-    Resolve participant names to emails using User Lookup Agent.
-    """
+def resolve_participants(names: List[str], requesting_user_id: str) -> List[str]:
+    """Resolve participant names to emails using local data tools."""
     resolved_emails = []
-    user_lookup_url = os.getenv("USER_LOOKUP_URL", "http://localhost:8002")
     
-    async with httpx.AsyncClient() as client:
-        for name in names:
-            try:
-                resp = await client.post(
-                    f"{user_lookup_url}/api/user-lookup",
-                    json={"query": name, "requesting_user_id": requesting_user_id}
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    if data["users"]:
-                        # Just take the first match for now
-                        # In a real app, we might ask for clarification if multiple matches
-                        resolved_emails.append(data["users"][0]["email"])
-                    else:
-                        print(f"⚠️ No user found for name: {name}")
-                else:
-                    print(f"❌ User Lookup failed for {name}: {resp.text}")
-            except Exception as e:
-                print(f"❌ Error calling User Lookup for {name}: {e}")
+    # Get user scope for lookup
+    scope = get_user_scope(requesting_user_id)
+    scope_user_ids = scope.get("user_ids", [])
+    
+    for name in names:
+        # Use find_users from data_tools
+        result = find_users(search_term=name, scope_user_ids=scope_user_ids)
+        users = result.get("users", [])
+        
+        if users:
+            # Take the first match
+            email = users[0].get("email")
+            if email:
+                resolved_emails.append(email)
+                print(f"✅ Resolved {name} -> {email}")
+            else:
+                print(f"⚠️ User found for {name} but no email")
+        else:
+            print(f"⚠️ No user found for name: {name}")
                 
     return resolved_emails
-
 
 def create_zoom_meeting(topic: str, start_time: datetime, duration_minutes: int = 60) -> Dict:
     """Create a real Zoom meeting using Zoom API."""
@@ -229,16 +153,12 @@ def create_zoom_meeting(topic: str, start_time: datetime, duration_minutes: int 
             "host_email": meeting_data.get("host_email", ""),
             "timezone": meeting_data.get("timezone", "UTC")
         }
-    except requests.exceptions.HTTPError as e:
-        raise Exception(f"Failed to create Zoom meeting: {str(e)}")
     except Exception as e:
         raise Exception(f"Error creating Zoom meeting: {str(e)}")
-
 
 def send_meeting_invitation(meeting_details: Dict, recipient_emails: List[str], host_email: str = None) -> Dict:
     """Send meeting invitation emails to multiple recipients using Gmail OAuth."""
     sender_email = host_email or SENDER_EMAIL
-    platform = meeting_details['platform']
     topic = meeting_details['topic']
     meeting_id = meeting_details['meeting_id']
     password = meeting_details.get('password', '')
@@ -253,7 +173,6 @@ def send_meeting_invitation(meeting_details: Dict, recipient_emails: List[str], 
     
     html_body = f"""
     <html>
-    <head></head>
     <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
         <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
             <h2 style="color: #2c3e50; border-bottom: 2px solid #2D8CFF; padding-bottom: 10px;">
@@ -291,10 +210,6 @@ def send_meeting_invitation(meeting_details: Dict, recipient_emails: List[str], 
                 <strong>Meeting Link:</strong><br>
                 <a href="{join_url}" style="color: #2D8CFF; word-break: break-all;">{join_url}</a>
             </div>
-            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; 
-                        font-size: 12px; color: #7f8c8d;">
-                <p>This is an automated meeting invitation. Please do not reply to this email.</p>
-            </div>
         </div>
     </body>
     </html>
@@ -304,9 +219,7 @@ def send_meeting_invitation(meeting_details: Dict, recipient_emails: List[str], 
         creds = get_gmail_creds(sender_email)
         service = build("gmail", "v1", credentials=creds)
     except Exception as e:
-        print(f"❌ Failed to authenticate with Gmail: {type(e).__name__}: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ Failed to authenticate with Gmail: {str(e)}")
         return {
             "total": len(recipient_emails),
             "successful": 0,
@@ -332,9 +245,7 @@ def send_meeting_invitation(meeting_details: Dict, recipient_emails: List[str], 
             ).execute()
             success_count += 1
         except Exception as e:
-            print(f"❌ Failed to send email to {recipient}: {type(e).__name__}: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            print(f"❌ Failed to send email to {recipient}: {str(e)}")
             failed_emails.append(recipient)
     
     return {
@@ -344,100 +255,84 @@ def send_meeting_invitation(meeting_details: Dict, recipient_emails: List[str], 
         "failed_emails": failed_emails
     }
 
+def get_user_email(user_id: str) -> Optional[str]:
+    """Get user's email from database by user_id."""
+    from .db import db_instance
+    db = db_instance.get_db()
+    if db is None:
+        return None
+    
+    user = db.users.find_one({"id": user_id})
+    if user:
+        return user.get("email")
+    return None
 
-def schedule_zoom_meeting(
+
+def schedule_meeting_tool(
     topic: str,
-    participant_emails: List[str],
-    start_time: datetime,
-    duration_minutes: int = 60,
+    start_time: str,
+    duration_minutes: int,
+    requesting_user_id: str,
+    participant_emails: List[str] = [],
+    participant_names: List[str] = [],
     host_email: str = None
 ) -> Dict:
-    """Schedule a Zoom meeting and send invitations via Gmail OAuth."""
-    valid_emails, invalid_emails = validate_email_list(participant_emails)
-    
-    if not valid_emails:
-        raise ValueError("No valid email addresses provided")
-    
-    meeting = create_zoom_meeting(topic, start_time, duration_minutes)
-    email_result = send_meeting_invitation(meeting, valid_emails, host_email)
-    
-    return {
-        "meeting": meeting,
-        "email_status": email_result,
-        "valid_emails": valid_emails,
-        "invalid_emails": invalid_emails
-    }
-
-
-# FastAPI App
-app = FastAPI(
-    title="Meeting Scheduler API",
-    description="API for scheduling Zoom meetings and sending Gmail invitations",
-    version="1.0.0"
-)
-
-@app.get("/")
-def read_root():
-    """Health check endpoint."""
-    return {
-        "service": "Meeting Scheduler API",
-        "status": "healthy",
-        "version": "1.0.0"
-    }
-
-@app.post("/schedule", response_model=MeetingResponse)
-async def schedule_meeting(request: MeetingRequest):
     """
-    Schedule a Zoom meeting and send email invitations.
+    Tool to schedule a Zoom meeting and send invitations.
+    start_time should be ISO 8601 string.
+    
+    IMPORTANT: The requesting user is ALWAYS added as a participant and becomes the host.
     """
     try:
+        # Parse start time
+        start_dt = datetime.fromisoformat(start_time)
+        
+        # Get requesting user's email - they are ALWAYS a participant and the host
+        requesting_user_email = get_user_email(requesting_user_id)
+        if requesting_user_email:
+            print(f"✅ Adding requesting user as participant and host: {requesting_user_email}")
+            # Set requesting user as host
+            if not host_email:
+                host_email = requesting_user_email
+        else:
+            print(f"⚠️ Could not find email for requesting user: {requesting_user_id}")
+        
         # Resolve names to emails
         resolved_emails = []
-        if request.participant_names:
-            resolved_emails = await resolve_participants(request.participant_names, request.requesting_user_id)
+        if participant_names:
+            resolved_emails = resolve_participants(participant_names, requesting_user_id)
             
-        # Combine provided emails and resolved emails
-        all_emails = list(set(request.participant_emails + resolved_emails))
+        # Combine provided emails, resolved emails, AND requesting user's email
+        all_emails = list(set(participant_emails + resolved_emails))
+        
+        # Add requesting user to participants if they have an email
+        if requesting_user_email and requesting_user_email not in all_emails:
+            all_emails.append(requesting_user_email)
+            print(f"✅ Requesting user {requesting_user_email} added to participants list")
         
         if not all_emails:
-             raise HTTPException(status_code=400, detail="No valid participants found (emails or names)")
+             return {"success": False, "message": "No valid participants found (emails or names)"}
 
-        result = schedule_zoom_meeting(
-            topic=request.topic,
-            participant_emails=all_emails,
-            start_time=request.start_time,
-            duration_minutes=request.duration_minutes,
-            host_email=request.host_email
-        )
+        valid_emails, invalid_emails = validate_email_list(all_emails)
         
-        return MeetingResponse(
-            success=True,
-            meeting=MeetingDetails(**result["meeting"]),
-            email_status=EmailStatus(**result["email_status"]),
-            valid_emails=result["valid_emails"],
-            invalid_emails=result["invalid_emails"],
-            message="Meeting scheduled successfully"
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        if not valid_emails:
+            return {"success": False, "message": "No valid email addresses provided"}
+        
+        meeting = create_zoom_meeting(topic, start_dt, duration_minutes)
+        
+        # Override Zoom's host_email with our actual host (requesting user)
+        # Zoom returns the account owner's email, but we want to show our host
+        meeting["host_email"] = host_email or meeting.get("host_email")
+        
+        email_result = send_meeting_invitation(meeting, valid_emails, host_email)
+        
+        return {
+            "success": True,
+            "meeting": meeting,
+            "email_status": email_result,
+            "participants": valid_emails,
+            "invalid_emails": invalid_emails if invalid_emails else None,
+            "message": f"Meeting '{topic}' scheduled successfully. Invitations sent to {len(valid_emails)} participants."
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to schedule meeting: {str(e)}")
-
-@app.get("/health")
-def health_check():
-    """Check service health and configuration."""
-    config_status = {
-        "gmail_configured": all([SENDER_EMAIL, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN]),
-        "zoom_configured": all([ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET, ZOOM_ACCOUNT_ID])
-    }
-    
-    return {
-        "status": "healthy",
-        "configuration": config_status
-    }
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+        return {"success": False, "message": f"Failed to schedule meeting: {str(e)}"}

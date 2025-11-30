@@ -1,621 +1,553 @@
 """
-ConnectBest Chat Platform - Streamlit Frontend
-
-A beautiful and intuitive frontend for all platform features:
-- Semantic Search
-- Message Summarization
-- User Lookup
-- Meeting Scheduler
+Slack Multi-Agent Chatbot UI
+A modern chatbot interface for interacting with Slack channel data.
 """
 
 import streamlit as st
 import requests
-import os
-from datetime import datetime, timedelta
-import pandas as pd
 import json
-from dotenv import load_dotenv
+from datetime import datetime
+import re
 
-# Load environment variables
-load_dotenv()
+# Configuration
+API_URL = "http://localhost:8006/api/orchestrate"
+STREAM_API_URL = "http://localhost:8006/api/orchestrate/stream"
 
 # Page configuration
 st.set_page_config(
-    page_title="ConnectBest Chat Platform",
+    page_title="Slack Agent Chat",
     page_icon="💬",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# API Endpoints
-SEMANTIC_SEARCH_URL = os.getenv("SEMANTIC_SEARCH_URL", "http://localhost:8001")
-SUMMARIZER_URL = os.getenv("SUMMARIZER_URL", "http://localhost:8005")
-EXPERT_FINDER_URL = os.getenv("EXPERT_FINDER_URL", "http://localhost:8003")
-JARGON_BUSTER_URL = os.getenv("JARGON_BUSTER_URL", "http://localhost:8004")
-ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "http://localhost:8006")
-USER_LOOKUP_URL = os.getenv("USER_LOOKUP_URL", "http://localhost:8002")
-MEETING_SCHEDULER_URL = os.getenv("MEETING_SCHEDULER_URL", "http://localhost:8000")
-
-# Custom CSS
+# Custom CSS for chat interface
 st.markdown("""
 <style>
-    .main-header {
-        font-size: 3rem;
-        font-weight: bold;
-        color: #1f77b4;
+    /* Main container */
+    .main .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+        max-width: 1200px;
+    }
+    
+    /* Chat messages */
+    .user-message {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 12px 18px;
+        border-radius: 18px 18px 4px 18px;
+        margin: 8px 0;
+        max-width: 80%;
+        margin-left: auto;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    }
+    
+    .assistant-message {
+        background: #f0f2f6;
+        color: #1f2937;
+        padding: 12px 18px;
+        border-radius: 18px 18px 18px 4px;
+        margin: 8px 0;
+        max-width: 80%;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Progress indicator */
+    .progress-item {
+        background: #e8f4f8;
+        border-left: 3px solid #0ea5e9;
+        padding: 8px 12px;
+        margin: 4px 0;
+        border-radius: 0 8px 8px 0;
+        font-size: 0.9em;
+    }
+    
+    /* Meeting card */
+    .meeting-card {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        padding: 16px;
+        border-radius: 12px;
+        margin: 10px 0;
+    }
+    
+    /* Expert card */
+    .expert-card {
+        background: #fef3c7;
+        border-left: 4px solid #f59e0b;
+        padding: 12px;
+        margin: 6px 0;
+        border-radius: 0 8px 8px 0;
+    }
+    
+    /* Summary section */
+    .summary-section {
+        background: #f0fdf4;
+        border: 1px solid #86efac;
+        padding: 16px;
+        border-radius: 12px;
+        margin: 10px 0;
+    }
+    
+    /* Header styling */
+    .chat-header {
+        background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 12px;
+        margin-bottom: 20px;
         text-align: center;
-        margin-bottom: 2rem;
     }
-    .feature-card {
-        padding: 1.5rem;
-        border-radius: 10px;
-        background-color: #f0f2f6;
-        margin-bottom: 1rem;
+    
+    /* Sidebar styling */
+    .sidebar-section {
+        background: #f8fafc;
+        padding: 12px;
+        border-radius: 8px;
+        margin: 8px 0;
     }
-    .success-box {
-        padding: 1rem;
-        border-radius: 5px;
-        background-color: #d4edda;
-        border: 1px solid #c3e6cb;
-        color: #155724;
+    
+    /* Input styling */
+    .stTextInput > div > div > input {
+        border-radius: 25px;
+        border: 2px solid #e2e8f0;
+        padding: 12px 20px;
     }
-    .error-box {
-        padding: 1rem;
-        border-radius: 5px;
-        background-color: #f8d7da;
-        border: 1px solid #f5c6cb;
-        color: #721c24;
+    
+    .stTextInput > div > div > input:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
     }
-    .info-box {
-        padding: 1rem;
-        border-radius: 5px;
-        background-color: #d1ecf1;
-        border: 1px solid #bee5eb;
-        color: #0c5460;
+    
+    /* Button styling */
+    .stButton > button {
+        border-radius: 25px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 10px 24px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    
+    /* Hide Streamlit branding */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    
+    /* Typing indicator */
+    .typing-indicator {
+        display: flex;
+        gap: 4px;
+        padding: 12px 18px;
+        background: #f0f2f6;
+        border-radius: 18px;
+        width: fit-content;
+    }
+    
+    .typing-dot {
+        width: 8px;
+        height: 8px;
+        background: #667eea;
+        border-radius: 50%;
+        animation: typing 1.4s infinite;
+    }
+    
+    @keyframes typing {
+        0%, 60%, 100% { transform: translateY(0); }
+        30% { transform: translateY(-10px); }
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Title
-st.markdown('<div class="main-header">💬 ConnectBest Chat Platform</div>', unsafe_allow_html=True)
+# Sample users for the sidebar
+SAMPLE_USERS = {
+    "Alice Smith": "758494dd-09f7-4c8e-908a-6366388ad540",
+    "Bob Johnson": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "Carol Williams": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+}
+
+# Initialize session state
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "selected_user" not in st.session_state:
+    st.session_state.selected_user = "Alice Smith"
+if "user_id" not in st.session_state:
+    st.session_state.user_id = SAMPLE_USERS["Alice Smith"]
+
+def format_response(response_data):
+    """Format the API response for display."""
+    formatted = []
+    
+    # Check if response contains meeting details
+    if "meeting_details" in response_data:
+        meeting = response_data["meeting_details"]
+        formatted.append(f"""
+<div class="meeting-card">
+    <h4>📅 Meeting Scheduled!</h4>
+    <p><strong>Topic:</strong> {meeting.get('topic', 'N/A')}</p>
+    <p><strong>Start:</strong> {meeting.get('start_time', 'N/A')}</p>
+    <p><strong>Duration:</strong> {meeting.get('duration', 30)} minutes</p>
+    <p><strong>Join URL:</strong> <a href="{meeting.get('join_url', '#')}" target="_blank" style="color: #a7f3d0;">{meeting.get('join_url', 'N/A')}</a></p>
+    <p><strong>Meeting ID:</strong> {meeting.get('id', 'N/A')}</p>
+</div>
+""")
+    
+    # Check if response contains experts
+    if "experts" in response_data and response_data["experts"]:
+        formatted.append("<h4>👥 Experts Found:</h4>")
+        for expert in response_data["experts"]:
+            name = expert.get("name", "Unknown")
+            email = expert.get("email", "N/A")
+            score = expert.get("score", 0)
+            sample = expert.get("sample_message", "")[:100] + "..." if expert.get("sample_message", "") else ""
+            formatted.append(f"""
+<div class="expert-card">
+    <strong>{name}</strong> ({email})<br/>
+    <small>Relevance: {score:.2f}</small>
+    {f'<br/><em>"{sample}"</em>' if sample else ''}
+</div>
+""")
+    
+    # Check if response contains channel summaries
+    if "channel_summaries" in response_data:
+        formatted.append("<h4>📊 Channel Summaries:</h4>")
+        for summary in response_data["channel_summaries"]:
+            channel = summary.get("channel", "Unknown")
+            msg_count = summary.get("message_count", 0)
+            text = summary.get("summary", "No summary available")
+            formatted.append(f"""
+<div class="summary-section">
+    <strong>#{channel}</strong> ({msg_count} messages)<br/>
+    {text}
+</div>
+""")
+    
+    # Check for progress updates
+    if "progress" in response_data and response_data["progress"]:
+        formatted.append("<h4>⏳ Progress:</h4>")
+        for step in response_data["progress"]:
+            formatted.append(f'<div class="progress-item">✓ {step}</div>')
+    
+    # Check for search results
+    if "search_results" in response_data and response_data["search_results"]:
+        formatted.append("<h4>🔍 Search Results:</h4>")
+        for result in response_data["search_results"][:5]:  # Limit to 5 results
+            text = result.get("text", "")[:200] + "..." if len(result.get("text", "")) > 200 else result.get("text", "")
+            channel = result.get("channel", "Unknown")
+            author = result.get("author", "Unknown")
+            formatted.append(f"""
+<div class="summary-section">
+    <strong>#{channel}</strong> - {author}<br/>
+    <em>{text}</em>
+</div>
+""")
+    
+    # Add main response text
+    if "response" in response_data:
+        formatted.append(f"<p>{response_data['response']}</p>")
+    elif "result" in response_data:
+        formatted.append(f"<p>{response_data['result']}</p>")
+    elif "summary" in response_data:
+        formatted.append(f"""
+<div class="summary-section">
+    {response_data['summary']}
+</div>
+""")
+    
+    # Execution time
+    if "execution_time" in response_data:
+        formatted.append(f"<small style='color: #6b7280;'>⏱️ Executed in {response_data['execution_time']:.2f}s</small>")
+    
+    return "\n".join(formatted) if formatted else str(response_data)
+
+def send_message(query: str, user_id: str, user_name: str) -> dict:
+    """Send a message to the API and return the response."""
+    try:
+        payload = {
+            "query": query,
+            "user_id": user_id,
+            "username": user_name
+        }
+        
+        response = requests.post(
+            API_URL,
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=60
+        )
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return {"error": f"API Error: {response.status_code}", "details": response.text}
+    
+    except requests.exceptions.ConnectionError:
+        return {"error": "Cannot connect to the API. Make sure the server is running on port 8006."}
+    except requests.exceptions.Timeout:
+        return {"error": "Request timed out. The operation took too long."}
+    except Exception as e:
+        return {"error": f"An error occurred: {str(e)}"}
+
+
+def is_all_channels_query(query: str) -> bool:
+    """Check if the query is asking for all channels summary."""
+    query_lower = query.lower()
+    patterns = [
+        r'\ball\s+(my\s+)?channels?\b',
+        r'\ball\s+(the\s+)?slack\s+channels?\b',
+        r'\bevery\s+channel\b',
+        r'\ball\s+of\s+(my\s+)?channels?\b',
+    ]
+    return any(re.search(p, query_lower) for p in patterns)
+
+
+def send_message_streaming(query: str, user_id: str, user_name: str, progress_container):
+    """
+    Send a message using the streaming endpoint for real-time updates.
+    Returns the final response data.
+    """
+    try:
+        payload = {
+            "query": query,
+            "user_id": user_id,
+            "username": user_name
+        }
+        
+        final_response = None
+        progress_messages = []
+        
+        with requests.post(
+            STREAM_API_URL,
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            stream=True,
+            timeout=120
+        ) as response:
+            if response.status_code != 200:
+                return {"error": f"API Error: {response.status_code}", "details": response.text}
+            
+            for line in response.iter_lines():
+                if line:
+                    line_str = line.decode('utf-8')
+                    if line_str.startswith('data: '):
+                        data_str = line_str[6:]  # Remove 'data: ' prefix
+                        try:
+                            event = json.loads(data_str)
+                            event_type = event.get("type", "")
+                            
+                            if event_type == "status":
+                                msg = event.get("message", "")
+                                progress_messages.append(msg)
+                                # Update the progress display
+                                with progress_container:
+                                    st.empty()
+                                    for pm in progress_messages:
+                                        st.markdown(f"<div class='progress-item'>{pm}</div>", unsafe_allow_html=True)
+                            
+                            elif event_type == "channel_fetched":
+                                msg = event.get("message", "")
+                                progress_messages.append(msg)
+                                with progress_container:
+                                    st.empty()
+                                    for pm in progress_messages:
+                                        st.markdown(f"<div class='progress-item'>{pm}</div>", unsafe_allow_html=True)
+                            
+                            elif event_type == "complete":
+                                final_response = event.get("data", {})
+                                if "intent" in event:
+                                    final_response["intent"] = event["intent"]
+                                if "execution_time" in event:
+                                    final_response["execution_time"] = event["execution_time"]
+                            
+                            elif event_type == "error":
+                                final_response = {"error": event.get("message", "Unknown error")}
+                            
+                            elif event_type == "done":
+                                if "execution_time" in event and final_response:
+                                    final_response["execution_time"] = event["execution_time"]
+                                break
+                        
+                        except json.JSONDecodeError:
+                            continue
+        
+        return final_response or {"error": "No response received"}
+    
+    except requests.exceptions.ConnectionError:
+        return {"error": "Cannot connect to the API. Make sure the server is running on port 8006."}
+    except requests.exceptions.Timeout:
+        return {"error": "Request timed out. The operation took too long."}
+    except Exception as e:
+        return {"error": f"An error occurred: {str(e)}"}
 
 # Sidebar
 with st.sidebar:
-    st.title("🎯 Features")
-    
-    page = st.radio(
-        "Select a feature:",
-        ["🏠 Home", "🔍 Semantic Search", "📊 Summarization", "🧑 Expert Finder", "📖 Jargon Buster", "🤖 AI Orchestrator", "👥 User Lookup", "📅 Meeting Scheduler", "🔧 System Status"]
+    st.markdown("### 👤 User Selection")
+    selected_user = st.selectbox(
+        "Select User",
+        options=list(SAMPLE_USERS.keys()),
+        index=list(SAMPLE_USERS.keys()).index(st.session_state.selected_user)
     )
     
-    st.markdown("---")
-    st.markdown("### 📚 Documentation")
-    st.markdown("[API Docs](http://localhost:8000/docs)")
-    st.markdown("[GitHub](https://github.com/ConnectBest/chat)")
-
-# Helper functions
-def check_service_health(url: str) -> tuple:
-    """Check if a service is healthy"""
-    try:
-        response = requests.get(f"{url}/health", timeout=5)
-        if response.status_code == 200:
-            return True, "Healthy"
-        else:
-            return False, f"Status {response.status_code}"
-    except Exception as e:
-        return False, str(e)
-
-# Home Page
-if page == "🏠 Home":
-    st.markdown("## Welcome to ConnectBest Chat Platform")
+    if selected_user != st.session_state.selected_user:
+        st.session_state.selected_user = selected_user
+        st.session_state.user_id = SAMPLE_USERS[selected_user]
+        st.rerun()
     
-    st.markdown("""
-    ### 🚀 Platform Features
-    
-    A comprehensive suite of AI-powered tools for team collaboration and communication.
-    """)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("#### 🔍 Semantic Search")
-        st.info("AI-powered message search using natural language queries")
-        
-        st.markdown("#### 📊 Message Summarization")
-        st.info("Generate intelligent summaries of channel conversations")
-        
-        st.markdown("#### 👤 Expert Finder")
-        st.info("Find experts in your organization based on skills and expertise")
-    
-    with col2:
-        st.markdown("#### 📖 Jargon Buster")
-        st.info("Explain complex enterprise jargon using AI-powered RAG")
-        
-        st.markdown("#### 🤖 AI Orchestrator")
-        st.info("Intelligent agent that routes queries to specialized services")
-        
-        st.markdown("#### 📅 Meeting Scheduler")
-        st.info("Schedule Zoom meetings with automatic Gmail invitations")
+    st.markdown(f"""
+    <div class="sidebar-section">
+        <strong>Current User:</strong> {st.session_state.selected_user}<br/>
+        <small style="color: #6b7280;">ID: {st.session_state.user_id[:8]}...</small>
+    </div>
+    """, unsafe_allow_html=True)
     
     st.markdown("---")
-    st.markdown("### 🎯 Quick Start")
-    st.markdown("""
-    1. Select a feature from the sidebar
-    2. Configure your search or action
-    3. View results in real-time
-    4. Export or share as needed
-    """)
-
-# Semantic Search Page
-elif page == "🔍 Semantic Search":
-    st.markdown("## 🔍 Semantic Search")
-    st.markdown("Search through messages using natural language queries")
     
-    col1, col2 = st.columns([3, 1])
-    
-    with col1:
-        query = st.text_input("Enter your search query:", placeholder="e.g., project updates and deadlines")
-    
-    with col2:
-        top_k = st.number_input("Results to show:", min_value=1, max_value=20, value=5)
-    
-    username = st.text_input("Your Username:", value="user", help="Enter your Slack username")
-    
-    if st.button("🔍 Search", type="primary"):
-        if query and username:
-            with st.spinner("Searching..."):
-                try:
-                    response = requests.post(
-                        f"{SEMANTIC_SEARCH_URL}/api/semantic-search",
-                        json={"query": query, "top_k": top_k, "username": username},
-                        timeout=30
-                    )
-                    
-                    if response.status_code == 200:
-                        results = response.json()
-                        
-                        st.success(f"✅ Found {len(results['results'])} results (searched {results.get('total_messages_searched', 0)} messages across {results.get('accessible_channels', 0)} channels)")
-                        
-                        for i, result in enumerate(results['results'], 1):
-                            with st.expander(f"📝 Result {i} - #{result['channel_name']} by {result['author_name']} ({result['similarity_score']:.2%})"):
-                                st.markdown(f"**Channel:** #{result['channel_name']}")
-                                st.markdown(f"**Author:** {result['author_name']}")
-                                st.markdown(f"**Similarity:** {result['similarity_score']:.2%}")
-                                st.markdown(f"**Time:** {result['created_at']}")
-                                st.markdown(f"**Message:**")
-                                st.text(result['text'])
-                    else:
-                        st.error(f"❌ Error: {response.status_code}")
-                        st.code(response.text)
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
-        else:
-            st.warning("⚠️ Please enter a search query")
-
-# Summarization Page
-elif page == "📊 Summarization":
-    st.markdown("## 📊 Message Summarization")
-    st.markdown("Generate AI-powered summaries of channel conversations")
-    
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        channel_id = st.text_input("Channel ID:", value="C12345", help="Enter the Slack channel ID")
-    
-    with col2:
-        limit = st.number_input("Messages to analyze:", min_value=10, max_value=200, value=50)
-    
-    user_id = st.text_input("Your User ID:", value="U12345")
-    thread_ts = st.text_input("Thread Timestamp (optional):", value="", help="Leave empty to summarize whole channel")
-    
-    if st.button("📊 Generate Summary", type="primary"):
-        if channel_id and user_id:
-            with st.spinner("Generating summary..."):
-                try:
-                    payload = {
-                        "channel_id": channel_id,
-                        "requesting_user_id": user_id,
-                        "limit": limit
-                    }
-                    if thread_ts:
-                        payload["thread_ts"] = thread_ts
-                    
-                    response = requests.post(
-                        f"{SUMMARIZER_URL}/api/summarize",
-                        json=payload,
-                        timeout=60
-                    )
-                    
-                    if response.status_code == 200:
-                        result = response.json()
-                        summary = result.get('summary', '')
-                        message_count = result.get('message_count', 0)
-                        
-                        st.success("✅ Summary generated successfully!")
-                        
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.metric("Channel ID", channel_id)
-                        with col2:
-                            st.metric("Messages", message_count)
-                        
-                        st.markdown("### 📝 Summary")
-                        st.markdown(summary)
-                        
-                        # Download button
-                        st.download_button(
-                            "📥 Download Summary",
-                            summary,
-                            file_name=f"summary_{channel_id}_{datetime.now().strftime('%Y%m%d')}.txt"
-                        )
-                    else:
-                        st.error(f"❌ Error: {response.status_code}")
-                        st.code(response.text)
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
-        else:
-            st.warning("⚠️ Please fill in all required fields")
-
-# Expert Finder Page
-elif page == "🧑 Expert Finder":
-    st.markdown("## 🧑 Expert Finder")
-    st.markdown("Find experts in your organization based on skills and past contributions")
-    
-    col1, col2 = st.columns([3, 1])
-    
-    with col1:
-        skill_query = st.text_input("What expertise are you looking for?", placeholder="e.g., Python, Machine Learning, DevOps")
-    
-    with col2:
-        top_k = st.number_input("Results:", min_value=1, max_value=10, value=3)
-    
-    user_id = st.text_input("Your User ID:", value="U12345")
-    
-    if st.button("🔍 Find Experts", type="primary"):
-        if skill_query and user_id:
-            with st.spinner("Finding experts..."):
-                try:
-                    response = requests.post(
-                        f"{EXPERT_FINDER_URL}/api/expert-finder",
-                        json={
-                            "query": skill_query,
-                            "requesting_user_id": user_id,
-                            "top_k": top_k
-                        },
-                        timeout=30
-                    )
-                    
-                    if response.status_code == 200:
-                        result = response.json()
-                        experts = result.get('experts', [])
-                        
-                        st.success(f"✅ Found {len(experts)} expert(s)")
-                        
-                        if experts:
-                            for i, expert in enumerate(experts, 1):
-                                with st.expander(f"👤 {expert.get('display_name', 'Unknown')} - Score: {expert.get('relevance_score', 0):.2f}"):
-                                    col1, col2 = st.columns(2)
-                                    with col1:
-                                        st.markdown(f"**Name:** {expert.get('display_name', 'N/A')}")
-                                        st.markdown(f"**Email:** {expert.get('email', 'N/A')}")
-                                    with col2:
-                                        st.markdown(f"**Score:** {expert.get('relevance_score', 0):.2f}")
-                                        st.markdown(f"**User ID:** {expert.get('user_id', 'N/A')}")
-                                    
-                                    if expert.get('relevant_messages'):
-                                        st.markdown("**Sample Messages:**")
-                                        for msg in expert.get('relevant_messages', []):
-                                            st.text(f"• {msg[:100]}...")
-                        else:
-                            st.info("ℹ️ No experts found. Try a different query or check if you have access to relevant channels.")
-                    else:
-                        st.error(f"❌ Error: {response.status_code}")
-                        st.code(response.text)
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
-        else:
-            st.warning("⚠️ Please enter a skill or expertise to search for")
-
-# Jargon Buster Page
-elif page == "📖 Jargon Buster":
-    st.markdown("## 📖 Jargon Buster")
-    st.markdown("Get clear explanations of enterprise jargon and technical terms")
-    
-    jargon_term = st.text_input("Enter a term to explain:", placeholder="e.g., API Gateway, Kubernetes, Scrum")
-    
-    if st.button("💡 Explain Term", type="primary"):
-        if jargon_term:
-            with st.spinner("Looking up definition..."):
-                try:
-                    response = requests.post(
-                        f"{JARGON_BUSTER_URL}/api/jargon-buster",
-                        json={"term": jargon_term},
-                        timeout=30
-                    )
-                    
-                    if response.status_code == 200:
-                        result = response.json()
-                        
-                        st.success("✅ Definition found!")
-                        
-                        st.markdown(f"### 📚 {jargon_term}")
-                        st.markdown(result.get('explanation', 'No explanation available'))
-                        
-                        if result.get('related_context'):
-                            with st.expander("📎 Related Context from Your Organization"):
-                                for ctx in result.get('related_context', []):
-                                    st.markdown(f"**Channel:** #{ctx.get('channel', 'N/A')}")
-                                    st.text(ctx.get('text', ''))
-                                    st.markdown("---")
-                    else:
-                        st.error(f"❌ Error: {response.status_code}")
-                        st.code(response.text)
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
-        else:
-            st.warning("⚠️ Please enter a term to explain")
-
-# AI Orchestrator Page
-elif page == "🤖 AI Orchestrator":
-    st.markdown("## 🤖 AI Orchestrator")
-    st.markdown("Ask anything and let AI route your query to the right service")
-    
-    st.info("💡 The orchestrator automatically determines which service to use based on your query!")
-    
-    user_query = st.text_area("What would you like to do?", placeholder="e.g., Find someone who knows about Docker\nExplain what API means\nSummarize the engineering channel", height=100)
+    st.markdown("### 💡 Quick Actions")
     
     col1, col2 = st.columns(2)
     with col1:
-        user_id = st.text_input("Your User ID:", value="U12345")
+        if st.button("📊 All Summaries", use_container_width=True):
+            st.session_state.quick_action = "give me summary of all channels for the past 24 hours"
     with col2:
-        username = st.text_input("Your Username:", value="user")
+        if st.button("👥 Find Experts", use_container_width=True):
+            st.session_state.quick_action = "who are the experts on machine learning?"
     
-    if st.button("🚀 Execute Query", type="primary"):
-        if user_query:
-            with st.spinner("Processing your request..."):
-                try:
-                    response = requests.post(
-                        f"{ORCHESTRATOR_URL}/api/orchestrate",
-                        json={
-                            "query": user_query,
-                            "user_id": user_id,
-                            "username": username,
-                            "context": {}
-                        },
-                        timeout=60
-                    )
-                    
-                    if response.status_code == 200:
-                        result = response.json()
-                        
-                        st.success(f"✅ Query processed using: **{result.get('agent_used', 'Unknown')}**")
-                        
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.metric("Intent Detected", result.get('intent', 'Unknown'))
-                        with col2:
-                            st.metric("Service Used", result.get('agent_used', 'Unknown'))
-                        
-                        st.markdown("### 📋 Response")
-                        response_data = result.get('response', {})
-                        
-                        if isinstance(response_data, dict):
-                            st.json(response_data)
-                        else:
-                            st.markdown(str(response_data))
-                    else:
-                        st.error(f"❌ Error: {response.status_code}")
-                        st.code(response.text)
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
-        else:
-            st.warning("⚠️ Please enter a query")
-
-# User Lookup Page
-elif page == "👥 User Lookup":
-    st.markdown("## 👥 User Lookup")
-    st.markdown("Find team members with intelligent search")
+    col3, col4 = st.columns(2)
+    with col3:
+        if st.button("📅 Schedule Meet", use_container_width=True):
+            st.session_state.quick_action = "schedule a meeting with the engineering team"
+    with col4:
+        if st.button("🔍 Search", use_container_width=True):
+            st.session_state.quick_action = "search for discussions about API design"
     
-    col1, col2 = st.columns([3, 1])
+    st.markdown("---")
     
-    with col1:
-        user_query = st.text_input("Search for user:", placeholder="e.g., John Smith")
+    st.markdown("### 📋 Example Queries")
+    st.markdown("""
+    - "Summarize #engineering channel"
+    - "Who knows about Python?"
+    - "Search for budget discussions"
+    - "Schedule a standup meeting tomorrow at 10am"
+    - "What was discussed in sales yesterday?"
+    """)
     
-    with col2:
-        requesting_user_id = st.text_input("Your User ID:", value="U12345")
+    st.markdown("---")
     
-    if st.button("👥 Search Users", type="primary"):
-        if user_query:
-            with st.spinner("Searching users..."):
-                try:
-                    response = requests.post(
-                        f"{USER_LOOKUP_URL}/api/user-lookup",
-                        json={
-                            "query": user_query,
-                            "requesting_user_id": requesting_user_id
-                        },
-                        timeout=10
-                    )
-                    
-                    if response.status_code == 200:
-                        result = response.json()
-                        
-                        st.success(f"✅ Found {result['count']} user(s)")
-                        
-                        if result['users']:
-                            df = pd.DataFrame(result['users'])
-                            
-                            # Display as cards
-                            for user in result['users']:
-                                with st.expander(f"👤 {user['display_name']} ({user['email']})"):
-                                    col1, col2, col3 = st.columns(3)
-                                    with col1:
-                                        st.markdown(f"**Email:** {user['email']}")
-                                    with col2:
-                                        st.markdown(f"**Admin:** {'Yes' if user.get('is_admin') else 'No'}")
-                                    with col3:
-                                        st.markdown(f"**Bot:** {'Yes' if user.get('is_bot') else 'No'}")
-                                    
-                                    if user.get('status'):
-                                        st.markdown(f"**Status:** {user['status']}")
-                        else:
-                            st.info("ℹ️ No users found matching the query")
-                    else:
-                        st.error(f"❌ Error: {response.status_code}")
-                        st.code(response.text)
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
-        else:
-            st.warning("⚠️ Please enter a search query")
-
-# Meeting Scheduler Page
-elif page == "📅 Meeting Scheduler":
-    st.markdown("## 📅 Meeting Scheduler")
-    st.markdown("Schedule Zoom meetings with automatic Gmail invitations")
-    
-    with st.form("meeting_form"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            topic = st.text_input("Meeting Topic:", placeholder="e.g., Team Standup")
-            host_email = st.text_input("Host Email:", value="cortona93@gmail.com")
-            
-            # Date and time
-            meeting_date = st.date_input("Meeting Date:", value=datetime.now() + timedelta(days=1))
-            meeting_time = st.time_input("Meeting Time:", value=datetime.now().time())
-        
-        with col2:
-            requesting_user_id = st.text_input("Your User ID:", value="U12345")
-            duration = st.number_input("Duration (minutes):", min_value=15, max_value=480, value=60, step=15)
-            
-            # Participants
-            st.markdown("**Participants:**")
-            participant_emails = st.text_area(
-                "Email addresses (one per line):",
-                placeholder="user1@example.com\nuser2@example.com"
-            )
-        
-        submit = st.form_submit_button("📅 Schedule Meeting", type="primary")
-    
-    if submit:
-        if topic and host_email and participant_emails:
-            # Parse emails
-            emails = [email.strip() for email in participant_emails.split('\n') if email.strip()]
-            
-            # Combine date and time
-            start_datetime = datetime.combine(meeting_date, meeting_time)
-            
-            with st.spinner("Scheduling meeting..."):
-                try:
-                    response = requests.post(
-                        f"{MEETING_SCHEDULER_URL}/schedule",
-                        json={
-                            "topic": topic,
-                            "participant_emails": emails,
-                            "requesting_user_id": requesting_user_id,
-                            "host_email": host_email,
-                            "start_time": start_datetime.isoformat(),
-                            "duration_minutes": duration
-                        },
-                        timeout=30
-                    )
-                    
-                    if response.status_code == 200:
-                        result = response.json()
-                        
-                        if result['success']:
-                            meeting = result['meeting']
-                            email_status = result['email_status']
-                            
-                            st.success("✅ Meeting scheduled successfully!")
-                            
-                            # Meeting details
-                            st.markdown("### 📋 Meeting Details")
-                            col1, col2, col3 = st.columns(3)
-                            with col1:
-                                st.metric("Meeting ID", meeting['meeting_id'])
-                            with col2:
-                                st.metric("Password", meeting['password'])
-                            with col3:
-                                st.metric("Duration", f"{meeting['duration']} min")
-                            
-                            st.markdown(f"**Join URL:** [{meeting['join_url']}]({meeting['join_url']})")
-                            
-                            # Email status
-                            st.markdown("### 📧 Email Status")
-                            col1, col2, col3 = st.columns(3)
-                            with col1:
-                                st.metric("Total", email_status['total'])
-                            with col2:
-                                st.metric("Successful", email_status['successful'], delta_color="normal")
-                            with col3:
-                                st.metric("Failed", email_status['failed'], delta_color="inverse")
-                            
-                            if email_status['failed_emails']:
-                                st.warning(f"⚠️ Failed to send to: {', '.join(email_status['failed_emails'])}")
-                        else:
-                            st.error(f"❌ {result.get('message', 'Unknown error')}")
-                    else:
-                        st.error(f"❌ Error: {response.status_code}")
-                        st.code(response.text)
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
-        else:
-            st.warning("⚠️ Please fill in all required fields")
-
-# System Status Page
-elif page == "🔧 System Status":
-    st.markdown("## 🔧 System Status")
-    st.markdown("Check the health of all services")
-    
-    if st.button("🔄 Refresh Status"):
+    if st.button("🗑️ Clear Chat History", use_container_width=True):
+        st.session_state.messages = []
         st.rerun()
     
     st.markdown("---")
-    
-    services = [
-        (SEMANTIC_SEARCH_URL, "Semantic Search", "🔍"),
-        (SUMMARIZER_URL, "Message Summarization", "📊"),
-        (EXPERT_FINDER_URL, "Expert Finder", "🧑"),
-        (JARGON_BUSTER_URL, "Jargon Buster", "📖"),
-        (ORCHESTRATOR_URL, "AI Orchestrator", "🤖"),
-        (USER_LOOKUP_URL, "User Lookup", "👥"),
-        (MEETING_SCHEDULER_URL, "Meeting Scheduler", "📅")
-    ]
-    
-    col1, col2 = st.columns(2)
-    
-    for i, (url, name, icon) in enumerate(services):
-        with col1 if i % 2 == 0 else col2:
-            with st.container():
-                healthy, status = check_service_health(url)
-                
-                if healthy:
-                    st.success(f"{icon} **{name}**\n\n✅ {status}")
-                else:
-                    st.error(f"{icon} **{name}**\n\n❌ {status}")
-                
-                st.caption(f"URL: {url}")
-    
-    st.markdown("---")
-    st.markdown("### 📊 Service URLs")
-    
-    df = pd.DataFrame([
-        {"Service": "Semantic Search", "URL": SEMANTIC_SEARCH_URL, "Docs": f"{SEMANTIC_SEARCH_URL}/docs"},
-        {"Service": "Summarization", "URL": SUMMARIZER_URL, "Docs": f"{SUMMARIZER_URL}/docs"},
-        {"Service": "Expert Finder", "URL": EXPERT_FINDER_URL, "Docs": f"{EXPERT_FINDER_URL}/docs"},
-        {"Service": "Jargon Buster", "URL": JARGON_BUSTER_URL, "Docs": f"{JARGON_BUSTER_URL}/docs"},
-        {"Service": "AI Orchestrator", "URL": ORCHESTRATOR_URL, "Docs": f"{ORCHESTRATOR_URL}/docs"},
-        {"Service": "User Lookup", "URL": USER_LOOKUP_URL, "Docs": f"{USER_LOOKUP_URL}/docs"},
-        {"Service": "Meeting Scheduler", "URL": MEETING_SCHEDULER_URL, "Docs": f"{MEETING_SCHEDULER_URL}/docs"}
-    ])
-    
-    st.dataframe(df, use_container_width=True)
+    st.markdown("""
+    <div style="text-align: center; color: #6b7280; font-size: 0.8em;">
+        <p>Slack Agent v1.0</p>
+        <p>Powered by LLM + MongoDB</p>
+    </div>
+    """, unsafe_allow_html=True)
 
-# Footer
-st.markdown("---")
+# Main chat area
 st.markdown("""
-<div style='text-align: center; color: #666;'>
-    <p>ConnectBest Chat Platform © 2025 | Built with Streamlit</p>
+<div class="chat-header">
+    <h1>💬 Slack Agent Chat</h1>
+    <p>Ask questions about your Slack channels, find experts, schedule meetings, and more!</p>
 </div>
 """, unsafe_allow_html=True)
+
+# Display chat messages
+chat_container = st.container()
+with chat_container:
+    for message in st.session_state.messages:
+        if message["role"] == "user":
+            st.markdown(f"""
+            <div style="display: flex; justify-content: flex-end;">
+                <div class="user-message">
+                    {message["content"]}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+            <div style="display: flex; justify-content: flex-start;">
+                <div class="assistant-message">
+                    {message["content"]}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+# Handle quick actions
+if "quick_action" in st.session_state and st.session_state.quick_action:
+    query = st.session_state.quick_action
+    st.session_state.quick_action = None
+    
+    # Add user message
+    st.session_state.messages.append({"role": "user", "content": query})
+    
+    # Check if this is an all-channels query (use streaming)
+    if is_all_channels_query(query):
+        # Create a placeholder for progress updates
+        progress_placeholder = st.empty()
+        with progress_placeholder.container():
+            st.markdown("**🔄 Processing...**")
+            progress_container = st.container()
+            response = send_message_streaming(query, st.session_state.user_id, st.session_state.selected_user, progress_container)
+        progress_placeholder.empty()  # Clear progress after done
+    else:
+        with st.spinner("🤔 Thinking..."):
+            response = send_message(query, st.session_state.user_id, st.session_state.selected_user)
+    
+    # Format and add assistant message
+    formatted_response = format_response(response)
+    st.session_state.messages.append({"role": "assistant", "content": formatted_response})
+    
+    st.rerun()
+
+# Chat input
+st.markdown("<br/>", unsafe_allow_html=True)
+col1, col2 = st.columns([6, 1])
+
+with col1:
+    user_input = st.text_input(
+        "Message",
+        placeholder="Ask me anything about your Slack channels...",
+        key="user_input",
+        label_visibility="collapsed"
+    )
+
+with col2:
+    send_button = st.button("Send ➤", use_container_width=True)
+
+# Process input
+if send_button and user_input:
+    # Add user message
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    
+    # Check if this is an all-channels query (use streaming)
+    if is_all_channels_query(user_input):
+        # Create a placeholder for progress updates
+        progress_placeholder = st.empty()
+        with progress_placeholder.container():
+            st.markdown("**🔄 Processing with live updates...**")
+            progress_container = st.container()
+            response = send_message_streaming(user_input, st.session_state.user_id, st.session_state.selected_user, progress_container)
+        progress_placeholder.empty()  # Clear progress after done
+    else:
+        with st.spinner("🤔 Thinking..."):
+            response = send_message(user_input, st.session_state.user_id, st.session_state.selected_user)
+    
+    # Format and add assistant message
+    formatted_response = format_response(response)
+    st.session_state.messages.append({"role": "assistant", "content": formatted_response})
+    
+    st.rerun()
+
+# Also handle Enter key submission
+if user_input and not send_button:
+    # Check if this is a new input (not already processed)
+    if not st.session_state.messages or st.session_state.messages[-1].get("content") != user_input:
+        pass  # Will be handled by the button click

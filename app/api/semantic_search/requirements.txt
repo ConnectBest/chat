@@ -1,8 +1,0 @@
-fastapi
-uvicorn
-pydantic
-pymongo
-sentence-transformers
-numpy
-pinecone
-python-dotenv
