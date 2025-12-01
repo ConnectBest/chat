@@ -1,0 +1,26 @@
+sequenceDiagram
+  autonumber
+  participant U as User (Web)
+  participant API as API Gateway/Backend
+  participant OBJ as Object Storage (S3/MinIO)
+  participant Q as Queue/Worker (RabbitMQ)
+  participant ENC as Transcoder (FFmpeg)
+  participant WS as WebSocket Server
+
+  U->>API: POST /auth/login
+  API-->>U: 200 JWT tokens
+
+  U->>API: POST /channels/{id}/messages
+  API-->>U: 201 message(id=m1)
+  API-->>WS: broadcast "message m1"
+
+  U->>API: POST /files/presign
+  API-->>U: 200 uploadUrl
+  U->>OBJ: PUT file
+  U->>API: POST /channels/{id}/messages (attachmentIds)
+  API->>Q: enqueue job(fileId)
+  Q->>ENC: start job
+  ENC->>OBJ: save thumbnails
+  ENC->>API: PATCH /files/{fileId} status=ready
+  API-->>WS: broadcast "file ready"
+  WS-->>U: event {type:fileReady, fileId}
