@@ -1,0 +1,78 @@
+erDiagram
+  USERS ||--o{ CHANNEL_MEMBERS : has
+  USERS ||--o{ MESSAGES : writes
+  USERS ||--o{ REACTIONS : reacts
+  CHANNELS ||--o{ MESSAGES : contains
+  CHANNELS ||--o{ CHANNEL_MEMBERS : has
+  MESSAGES ||--o{ THREADS : has
+  MESSAGES ||--o{ MESSAGE_FILES : attaches
+  FILES ||--o{ MESSAGE_FILES : linked
+  MESSAGES ||--o{ MESSAGE_EMBEDDINGS : has
+
+  USERS {
+    uuid id PK
+    text display_name
+    text email
+    text avatar_url
+    boolean email_verified
+    datetime created_at
+  }
+
+  CHANNELS {
+    uuid id PK
+    text name
+    text topic
+    boolean is_private
+    uuid created_by
+    datetime created_at
+    datetime archived_at
+  }
+
+  CHANNEL_MEMBERS {
+    uuid user_id
+    uuid channel_id
+    datetime joined_at
+  }
+
+  MESSAGES {
+    uuid id PK
+    uuid channel_id
+    uuid author_id
+    text text
+    uuid parent_id
+    datetime created_at
+    datetime edited_at
+  }
+
+  THREADS {
+    uuid parent_id
+    uuid reply_id
+  }
+
+  FILES {
+    uuid id PK
+    text filename
+    text mime_type
+    int size_bytes
+    text storage_url
+    text status
+  }
+
+  MESSAGE_FILES {
+    uuid message_id
+    uuid file_id
+  }
+
+  REACTIONS {
+    uuid message_id
+    uuid user_id
+    text emoji
+  }
+
+  MESSAGE_EMBEDDINGS {
+    uuid message_id PK
+    text model
+    int dims
+    text embedding
+    datetime created_at
+  }
