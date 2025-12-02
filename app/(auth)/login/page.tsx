@@ -62,7 +62,6 @@ function LoginForm() {
       } else if (result?.ok) {
         // Successful login
         const callbackUrl = searchParams.get('callbackUrl') || '/chat/general';
-        console.log('✅ Login successful! Redirecting to:', callbackUrl);
         router.push(callbackUrl);
         router.refresh();
       }

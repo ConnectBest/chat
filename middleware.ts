@@ -14,18 +14,6 @@ export async function middleware(request: NextRequest) {
     secureCookie: protocol === 'https',
   });
 
-  // Debug logging
-  console.log('🔒 Middleware check:', {
-    pathname,
-    host,
-    protocol,
-    nextauthUrl: process.env.NEXTAUTH_URL,
-    hasToken: !!token,
-    tokenUserId: token?.sub,
-    tokenEmail: token?.email,
-    cookies: request.cookies.getAll().map(c => ({ name: c.name, value: c.value.substring(0, 20) + '...' }))
-  });
-
   // Protected routes that require authentication
   const protectedRoutes = ['/chat', '/profile', '/admin', '/ops'];
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
@@ -36,7 +24,6 @@ export async function middleware(request: NextRequest) {
 
   // Redirect to login if accessing protected route without session
   if (isProtectedRoute && !token) {
-    console.log('❌ No token found, redirecting to login');
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);
@@ -54,7 +41,6 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  console.log('✅ Middleware passed');
   return NextResponse.next();
 }
 

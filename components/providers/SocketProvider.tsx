@@ -43,29 +43,21 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       const userName = session.user.name || 'Anonymous';
       const url = `${wsUrl}?userId=${encodeURIComponent(userId)}&userName=${encodeURIComponent(userName)}&channelId=general`;
 
-      console.log('🔌 Connecting to WebSocket:', url);
       const ws = new WebSocket(url);
       socketRef.current = ws;
 
       ws.onopen = () => {
-        console.log('✅ WebSocket connected successfully');
         setConnected(true);
         reconnectAttemptsRef.current = 0;
       };
 
       ws.onclose = (event) => {
-        console.log('❌ WebSocket disconnected', {
-          code: event.code,
-          reason: event.reason,
-          wasClean: event.wasClean
-        });
         setConnected(false);
         socketRef.current = null;
 
         // Auto-reconnect with exponential backoff
         if (session?.user && reconnectAttemptsRef.current < 5) {
           const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
-          console.log(`🔄 Reconnecting in ${delay}ms... (attempt ${reconnectAttemptsRef.current + 1}/5)`);
           reconnectTimeoutRef.current = setTimeout(() => {
             reconnectAttemptsRef.current++;
             connect();
@@ -75,13 +67,11 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
       ws.onerror = (error) => {
         console.error('⚠️ WebSocket error:', error);
-        console.log('WebSocket readyState:', ws.readyState);
       };
 
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log('📨 WebSocket message received:', data);
           // Notify all registered callbacks
           messageCallbacksRef.current.forEach(callback => callback(data));
         } catch (error) {
