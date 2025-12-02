@@ -35,7 +35,7 @@ export async function middleware(request: NextRequest) {
 
     if (userRole !== 'admin') {
       // Redirect non-admin users to chat with error message
-      const chatUrl = new URL('/chat/general', request.url);
+      const chatUrl = new URL('/chat', request.url);
       chatUrl.searchParams.set('error', 'unauthorized');
       return NextResponse.redirect(chatUrl);
     }

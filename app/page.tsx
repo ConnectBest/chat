@@ -36,7 +36,7 @@ export default function Home() {
 
         <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem', justifyContent: 'center' }}>
           <Link
-            href="/chat/general"
+            href="/chat"
             style={{
               background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
               color: 'white',
