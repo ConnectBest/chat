@@ -4,19 +4,26 @@ import { getToken } from 'next-auth/jwt';
 
 // Middleware runs in Edge Runtime - cannot import nodemailer or Node.js modules
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  const host = request.headers.get('host');
+  const protocol = request.headers.get('x-forwarded-proto') || 'https';
+
   const token = await getToken({
     req: request,
-    secret: process.env.NEXTAUTH_SECRET
+    secret: process.env.NEXTAUTH_SECRET,
+    secureCookie: protocol === 'https',
   });
-
-  const { pathname } = request.nextUrl;
 
   // Debug logging
   console.log('🔒 Middleware check:', {
     pathname,
+    host,
+    protocol,
+    nextauthUrl: process.env.NEXTAUTH_URL,
     hasToken: !!token,
     tokenUserId: token?.sub,
-    cookies: request.cookies.getAll().map(c => c.name)
+    tokenEmail: token?.email,
+    cookies: request.cookies.getAll().map(c => ({ name: c.name, value: c.value.substring(0, 20) + '...' }))
   });
 
   // Protected routes that require authentication
