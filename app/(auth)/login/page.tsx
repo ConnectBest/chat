@@ -41,6 +41,7 @@ function LoginForm() {
     setError('');
 
     try {
+      console.log('🔐 Attempting login...', { email: values.email });
       const result = await signIn('credentials', {
         email: values.email,
         password: values.password,
@@ -48,7 +49,10 @@ function LoginForm() {
         redirect: false,
       });
 
+      console.log('🔐 Login result:', result);
+
       if (result?.error) {
+        console.error('❌ Login error:', result.error);
         if (result.error === 'VERIFICATION_REQUIRED') {
           setNeedsVerification(true);
           setError('📧 Verification code sent to your email! Please check your inbox.');
@@ -58,10 +62,12 @@ function LoginForm() {
       } else if (result?.ok) {
         // Successful login
         const callbackUrl = searchParams.get('callbackUrl') || '/chat/general';
+        console.log('✅ Login successful! Redirecting to:', callbackUrl);
         router.push(callbackUrl);
         router.refresh();
       }
     } catch (err) {
+      console.error('❌ Login exception:', err);
       setError('An unexpected error occurred');
     } finally {
       setLoading(false);
