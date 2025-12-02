@@ -18,7 +18,15 @@
       "Bash(AWS_PROFILE=personal-admin aws configure:*)",
       "Bash(/tmp/check_lightsail.sh)",
       "Bash(cat:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(npm run build:*)",
+      "Bash(git restore:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(open \"https://github.com/ConnectBest/chat/actions/runs/19842054350\")",
+      "Bash(git show:*)",
+      "Bash(gh secret list:*)",
+      "Bash(node -e:*)"
     ],
     "deny": [],
     "ask": []

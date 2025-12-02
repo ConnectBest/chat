@@ -133,6 +133,7 @@ jobs:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          NEXT_PUBLIC_WEBSOCKET_URL: ${{ secrets.NEXT_PUBLIC_WEBSOCKET_URL }}
         run: |
           echo "Checking deployment status..."
 

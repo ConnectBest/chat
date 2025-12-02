@@ -21,7 +21,8 @@ cat > lightsail/deployment.json <<EOF
         "EMAIL_PORT": "${EMAIL_PORT:-587}",
         "EMAIL_USER": "${EMAIL_USER:-}",
         "EMAIL_PASSWORD": "${EMAIL_PASSWORD:-}",
-        "EMAIL_FROM": "${EMAIL_FROM:-noreply@connectbest.com}"
+        "EMAIL_FROM": "${EMAIL_FROM:-noreply@connectbest.com}",
+        "NEXT_PUBLIC_WEBSOCKET_URL": "${NEXT_PUBLIC_WEBSOCKET_URL:-}"
       }
     }
   },
