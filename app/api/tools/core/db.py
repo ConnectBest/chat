@@ -1,12 +1,13 @@
-import os
+"""
+Database Manager - Thread-safe singleton for MongoDB and Embedding Model
+"""
+
 import threading
 from pymongo import MongoClient
 from pymongo.server_api import ServerApi
 from sentence_transformers import SentenceTransformer
-from groq import Groq
-from dotenv import load_dotenv
 
-load_dotenv()
+from .config import MONGO_URI, MONGO_DATABASE, EMBEDDING_MODEL
 
 
 class Database:
@@ -17,43 +18,36 @@ class Database:
     def __new__(cls):
         if cls._instance is None:
             with cls._lock:
-                # Double-check locking pattern
                 if cls._instance is None:
                     cls._instance = super(Database, cls).__new__(cls)
                     cls._instance.client = None
                     cls._instance.db = None
                     cls._instance.embedding_model = None
-                    cls._instance.groq_client = None
                     cls._instance.initialized = False
                     cls._instance._init_lock = threading.Lock()
         return cls._instance
 
     def initialize(self):
-        """Initialize all database connections. Thread-safe."""
+        """Initialize database connections. Thread-safe."""
         with self._init_lock:
             if self.initialized:
                 return True
             
             success = True
-            mongo_uri = os.getenv("MONGO_URI")
-            groq_api_key = os.getenv("GROQ_API_KEY")
             
             # MongoDB
-            if mongo_uri:
+            if MONGO_URI:
                 try:
                     self.client = MongoClient(
-                        mongo_uri, 
+                        MONGO_URI, 
                         server_api=ServerApi('1'),
-                        serverSelectionTimeoutMS=5000  # 5 second timeout
+                        serverSelectionTimeoutMS=5000
                     )
-                    # Test the connection
                     self.client.admin.command('ping')
-                    self.db = self.client["connectbest_chat"]
+                    self.db = self.client[MONGO_DATABASE]
                     print("✅ Database: Connected to MongoDB")
                 except Exception as e:
                     print(f"❌ Database: MongoDB connection failed: {e}")
-                    self.client = None
-                    self.db = None
                     success = False
             else:
                 print("⚠️  Database: MONGO_URI not set")
@@ -62,22 +56,11 @@ class Database:
             # Embedding Model
             try:
                 print("📦 Database: Loading embedding model...")
-                self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+                self.embedding_model = SentenceTransformer(EMBEDDING_MODEL)
                 print("✅ Database: Embedding model loaded")
             except Exception as e:
                 print(f"❌ Database: Failed to load embedding model: {e}")
                 self.embedding_model = None
-            
-            # Groq Client
-            if groq_api_key:
-                try:
-                    self.groq_client = Groq(api_key=groq_api_key)
-                    print("✅ Database: Groq client initialized")
-                except Exception as e:
-                    print(f"❌ Database: Groq client failed: {e}")
-                    self.groq_client = None
-            else:
-                print("⚠️  Database: GROQ_API_KEY not set")
                 
             self.initialized = True
             return success
@@ -93,12 +76,6 @@ class Database:
         if not self.initialized:
             self.initialize()
         return self.embedding_model
-
-    def get_groq_client(self):
-        """Get Groq LLM client instance."""
-        if not self.initialized:
-            self.initialize()
-        return self.groq_client
     
     def is_connected(self) -> bool:
         """Check if MongoDB is connected."""
@@ -109,15 +86,7 @@ class Database:
             return True
         except Exception:
             return False
-    
-    def reconnect(self) -> bool:
-        """Attempt to reconnect to MongoDB."""
-        with self._init_lock:
-            self.initialized = False
-            self.client = None
-            self.db = None
-        return self.initialize()
 
 
-# Global instance
+# Global singleton
 db_instance = Database()

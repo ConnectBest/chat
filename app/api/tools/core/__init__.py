@@ -1,18 +1,26 @@
 """
-Core Module for Multi-Agent Slack Application
+ConnectBest AI Agent Core
 
-This package provides shared utilities for all agents:
-- config: Centralized configuration
-- llm: Unified LLM interface
+Clean modular structure:
+- config.py: Configuration constants
+- db.py: Database singleton
+- data_tools.py: Database operations
+- tools.py: LangChain tool definitions
+- agent.py: LangGraph agent
+- jargon_tools.py: Jargon lookup
+- summarizer_tools.py: Channel summarization
+- meeting_tools.py: Zoom/Gmail integration
 """
 
-from .config import Config, config
-from .llm import LLMProvider, get_llm, get_default_llm
+from .agent import ConnectBestAgent, get_agent, init_agent
+from .tools import ALL_TOOLS, create_tools, set_current_user, get_current_user
 
 __all__ = [
-    "Config",
-    "config", 
-    "LLMProvider",
-    "get_llm",
-    "get_default_llm",
+    "ConnectBestAgent",
+    "get_agent", 
+    "init_agent",
+    "ALL_TOOLS",
+    "create_tools",
+    "set_current_user",
+    "get_current_user",
 ]
