@@ -63,6 +63,7 @@ users.set('bob@test.com', {
 });
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  trustHost: true, // Required for deployment behind proxies/load balancers
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
