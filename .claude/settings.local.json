@@ -12,7 +12,13 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(aws apprunner describe-service:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(AWS_PROFILE=personal-admin aws lightsail:*)",
+      "Bash(env)",
+      "Bash(AWS_PROFILE=personal-admin aws configure:*)",
+      "Bash(/tmp/check_lightsail.sh)",
+      "Bash(cat:*)",
+      "Bash(python3:*)"
     ],
     "deny": [],
     "ask": []
