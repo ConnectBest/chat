@@ -157,11 +157,13 @@ class ConnectBestAgent:
             raise RuntimeError("GROQ_API_KEY not set")
         
         self.memory = MemoryManager(MONGO_URI, MONGO_DATABASE)
-        # Bind tools explicitly with strict=False for more lenient parsing
+        # Initialize LLM
         base_llm = ChatGroq(api_key=GROQ_API_KEY, model_name=GROQ_MODEL, temperature=0.1)
         self.llm = base_llm.bind_tools(ALL_TOOLS)
         self.tools = ALL_TOOLS
-        self.agent = create_agent(base_llm, self.tools, system_prompt=SYSTEM_PROMPT)
+        # Use new create_agent API from langchain.agents
+        # Note: system_prompt is dynamic (includes user_id), so we pass it via messages
+        self.agent = create_agent(base_llm, tools=self.tools)
         print(f"✅ Agent ready with {len(self.tools)} tools")
     
     async def chat(self, message: str, user_id: str, include_history: bool = True) -> Dict[str, Any]:

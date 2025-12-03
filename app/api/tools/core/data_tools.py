@@ -194,7 +194,8 @@ def search_vector_db(query: str, scope_channels: List[str], top_k: int = 10) -> 
         if not scope_channels:
             return {"results": [], "message": "No channels in scope", "count": 0}
         
-        query_embedding = embedding_model.encode(query).tolist()
+        # FastEmbed returns generator of embeddings
+        query_embedding = list(embedding_model.embed([query]))[0].tolist()
         
         pipeline = [
             {
@@ -246,7 +247,8 @@ def find_experts_in_db(topic: str, scope_channels: List[str], top_k: int = 5) ->
     if not scope_channels:
         return {"experts": [], "message": "No channels in scope"}
     
-    query_embedding = embedding_model.encode(topic).tolist()
+    # FastEmbed returns generator of embeddings
+    query_embedding = list(embedding_model.embed([topic]))[0].tolist()
     
     # Pipeline uses weighted scoring: avg_score * log(message_count + 1)
     # This balances relevance quality with depth of knowledge

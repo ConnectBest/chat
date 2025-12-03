@@ -2,12 +2,17 @@
 Database Manager - Thread-safe singleton for MongoDB and Embedding Model
 """
 
+import os
 import threading
+from typing import List
 from pymongo import MongoClient
 from pymongo.server_api import ServerApi
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 
 from .config import MONGO_URI, MONGO_DATABASE, EMBEDDING_MODEL
+
+# Prevent semaphore leak warnings
+os.environ["LOKY_MAX_CPU_COUNT"] = "1"
 
 
 class Database:
@@ -53,11 +58,11 @@ class Database:
                 print("⚠️  Database: MONGO_URI not set")
                 success = False
             
-            # Embedding Model
+            # Embedding Model (FastEmbed)
             try:
-                print("📦 Database: Loading embedding model...")
-                self.embedding_model = SentenceTransformer(EMBEDDING_MODEL)
-                print("✅ Database: Embedding model loaded")
+                print("📦 Database: Loading FastEmbed model...")
+                self.embedding_model = TextEmbedding(model_name=EMBEDDING_MODEL)
+                print("✅ Database: FastEmbed model loaded")
             except Exception as e:
                 print(f"❌ Database: Failed to load embedding model: {e}")
                 self.embedding_model = None
@@ -77,6 +82,14 @@ class Database:
             self.initialize()
         return self.embedding_model
     
+    def encode(self, texts: List[str]) -> List[List[float]]:
+        """Encode texts to embeddings using FastEmbed."""
+        if self.embedding_model is None:
+            return []
+        # FastEmbed returns a generator, convert to list
+        embeddings = list(self.embedding_model.embed(texts))
+        return [emb.tolist() for emb in embeddings]
+    
     def is_connected(self) -> bool:
         """Check if MongoDB is connected."""
         if self.client is None:
@@ -86,6 +99,13 @@ class Database:
             return True
         except Exception:
             return False
+    
+    def close(self):
+        """Clean shutdown of resources."""
+        if self.client:
+            self.client.close()
+        self.embedding_model = None
+        self.initialized = False
 
 
 # Global singleton

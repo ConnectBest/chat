@@ -10,18 +10,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from pymongo import MongoClient
 from pymongo.server_api import ServerApi
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 from typing import List, Optional, AsyncGenerator
 from datetime import datetime
 from contextlib import asynccontextmanager
 import os
 import time
 
+# Prevent semaphore leak warnings from fastembed
+os.environ["LOKY_MAX_CPU_COUNT"] = "1"
+
 # Configuration
 MONGO_URI = os.getenv("MONGO_URI")
 DATABASE_NAME = "connectbest_chat"
 VECTOR_INDEX_NAME = "vector_index"
 EMBEDDING_FIELD = "embedding"
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
 
 # Global state
 mongo_client = None
@@ -43,10 +47,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     db = mongo_client[DATABASE_NAME]
     print("✅ MongoDB connected")
     
-    # Load embedding model
-    print("📦 Loading embedding model...")
-    embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
-    print("✅ Embedding model loaded")
+    # Load embedding model (FastEmbed - lightweight, no torch needed)
+    print(f"📦 Loading FastEmbed model: {EMBEDDING_MODEL}...")
+    embedding_model = TextEmbedding(model_name=EMBEDDING_MODEL)
+    print("✅ FastEmbed model loaded")
     
     yield
     
@@ -124,8 +128,8 @@ def search_messages(query: str, channel_ids: List[str], limit: int = 10) -> List
     if not query.strip():
         return []
     
-    # Generate embedding for query
-    query_embedding = embedding_model.encode(query).tolist()
+    # Generate embedding for query (FastEmbed returns generator)
+    query_embedding = list(embedding_model.embed([query]))[0].tolist()
     
     # Vector search pipeline - join with messages first to get channel_id
     pipeline = [
@@ -215,11 +219,11 @@ async def health():
         "status": "healthy",
         "service": "semantic-search",
         "database": "connected" if db is not None else "disconnected",
-        "model": "all-MiniLM-L6-v2"
+        "model": EMBEDDING_MODEL
     }
 
 
-@app.api_route("/api/semantic-search", methods=["GET", "POST"], response_model=SearchResponse)
+@app.get("/api/semantic-search", response_model=SearchResponse)
 async def semantic_search(
     q: str = Query(..., min_length=1, description="Search query"),
     username: str = Query(..., description="Username for access control"),
@@ -227,7 +231,7 @@ async def semantic_search(
 ):
     """
     Semantic search endpoint - call on every keystroke for typeahead.
-    Supports both GET and POST methods.
+    GET method only for efficient caching and CDN support.
     """
     import time
     start = time.time()
