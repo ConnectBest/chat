@@ -8,53 +8,46 @@ Optimized with:
 - Reduced numCandidates for vector search
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import time
+from functools import lru_cache
 
 from .db import db_instance
 from .config import VECTOR_INDEX_NAME, VECTOR_FIELD_NAME, EMBEDDINGS_COLLECTION, CACHE_TTL_SECONDS
 
 
 # =============================================================================
-# CACHING
+# CACHING (LRU-based with TTL for bounded memory usage)
 # =============================================================================
 
-_channel_cache: Dict[str, Any] = {"ids": [], "timestamp": 0}
-_user_cache: Dict[str, Any] = {"map": {}, "timestamp": 0}
-
-
-def get_cached_channel_ids() -> List[str]:
-    """Get all channel IDs with TTL caching"""
-    global _channel_cache
-    now = time.time()
-    
-    if now - _channel_cache["timestamp"] < CACHE_TTL_SECONDS and _channel_cache["ids"]:
-        return _channel_cache["ids"]
-    
+@lru_cache(maxsize=1)
+def _fetch_channel_ids(cache_key: int) -> Tuple[str, ...]:
+    """Fetch channel IDs from DB. cache_key changes every TTL period."""
     db = db_instance.get_db()
     if db is None:
-        return []
-    
-    ids = [c["id"] for c in db.channels.find({}, {"id": 1})]
-    _channel_cache = {"ids": ids, "timestamp": now}
-    return ids
+        return tuple()
+    return tuple(c["id"] for c in db.channels.find({}, {"id": 1}))
 
 
-def get_cached_user_map() -> Dict[str, str]:
-    """Get user_id -> display_name map with TTL caching"""
-    global _user_cache
-    now = time.time()
-    
-    if now - _user_cache["timestamp"] < CACHE_TTL_SECONDS and _user_cache["map"]:
-        return _user_cache["map"]
-    
+@lru_cache(maxsize=1)
+def _fetch_user_map(cache_key: int) -> Dict[str, str]:
+    """Fetch user map from DB. cache_key changes every TTL period."""
     db = db_instance.get_db()
     if db is None:
         return {}
-    
-    user_map = {u["id"]: u.get("display_name", "Unknown") for u in db.users.find({}, {"id": 1, "display_name": 1})}
-    _user_cache = {"map": user_map, "timestamp": now}
-    return user_map
+    return {u["id"]: u.get("display_name", "Unknown") for u in db.users.find({}, {"id": 1, "display_name": 1})}
+
+
+def get_cached_channel_ids() -> List[str]:
+    """Get all channel IDs with TTL caching (bounded memory via LRU)"""
+    cache_key = int(time.time() // CACHE_TTL_SECONDS)
+    return list(_fetch_channel_ids(cache_key))
+
+
+def get_cached_user_map() -> Dict[str, str]:
+    """Get user_id -> display_name map with TTL caching (bounded memory via LRU)"""
+    cache_key = int(time.time() // CACHE_TTL_SECONDS)
+    return _fetch_user_map(cache_key)
 
 
 # =============================================================================
@@ -63,6 +56,7 @@ def get_cached_user_map() -> Dict[str, str]:
 
 def resolve_channel_id(channel_identifier: str, db) -> Optional[str]:
     """Resolve channel name or ID to UUID"""
+    import re as regex_module
     if not channel_identifier:
         return None
     
@@ -71,8 +65,10 @@ def resolve_channel_id(channel_identifier: str, db) -> Optional[str]:
         if db.channels.find_one({"id": channel_identifier}):
             return channel_identifier
     
+    # Escape regex special characters to prevent injection
+    escaped = regex_module.escape(channel_identifier)
     # Find by name (case-insensitive)
-    channel = db.channels.find_one({"name": {"$regex": f"^{channel_identifier}$", "$options": "i"}})
+    channel = db.channels.find_one({"name": {"$regex": f"^{escaped}$", "$options": "i"}})
     return channel["id"] if channel else None
 
 
@@ -81,7 +77,7 @@ def get_user_scope(user_id: str) -> Dict[str, Any]:
     try:
         db = db_instance.get_db()
         if db is None:
-            return {"channels": [], "user_ids": []}
+            return {"success": False, "channels": [], "user_ids": [], "error": "Database not available"}
         
         memberships = list(db.channel_members.find({"user_id": user_id}, {"channel_id": 1}))
         channel_ids = [m["channel_id"] for m in memberships]
@@ -92,10 +88,10 @@ def get_user_scope(user_id: str) -> Dict[str, Any]:
         else:
             user_ids = [user_id]
         
-        return {"channels": channel_ids, "user_ids": user_ids}
+        return {"success": True, "channels": channel_ids, "user_ids": user_ids}
     except Exception as e:
         print(f"Error getting user scope: {e}")
-        return {"channels": [], "user_ids": []}
+        return {"success": False, "channels": [], "user_ids": [], "error": str(e)}
 
 
 # =============================================================================
@@ -106,7 +102,7 @@ def fetch_slack_history(channel_id: str, limit: int = 50, thread_ts: str = None)
     """Fetch message history with batch user lookup"""
     db = db_instance.get_db()
     if db is None:
-        return {"messages": [], "message": "Database not available"}
+        return {"success": False, "messages": [], "error": "Database not available"}
     
     query = {"channel_id": channel_id}
     if thread_ts:
@@ -143,7 +139,7 @@ def find_users(search_term: str, scope_user_ids: List[str] = None, limit: int = 
     """Find users by name/email with optimized query"""
     db = db_instance.get_db()
     if db is None:
-        return {"users": [], "message": "Database not available"}
+        return {"success": False, "users": [], "error": "Database not available"}
     
     regex_query = {"$regex": search_term, "$options": "i"}
     user_match = {
@@ -182,20 +178,31 @@ def find_users(search_term: str, scope_user_ids: List[str] = None, limit: int = 
 # VECTOR SEARCH
 # =============================================================================
 
+@lru_cache(maxsize=500)
+def _get_cached_embedding(query: str) -> Tuple[float, ...]:
+    """Cache embeddings to avoid regenerating for repeated queries."""
+    embedding_model = db_instance.get_embedding_model()
+    if embedding_model is None:
+        return tuple()
+    embedding = list(embedding_model.embed([query]))[0]
+    return tuple(embedding.tolist())
+
+
 def search_vector_db(query: str, scope_channels: List[str], top_k: int = 10) -> Dict[str, Any]:
     """Search messages using Atlas Vector Search"""
     try:
         db = db_instance.get_db()
-        embedding_model = db_instance.get_embedding_model()
         
-        if db is None or embedding_model is None:
-            return {"results": [], "message": "Database or model not available", "error": True}
+        if db is None:
+            return {"results": [], "message": "Database not available", "error": True}
         
         if not scope_channels:
             return {"results": [], "message": "No channels in scope", "count": 0}
         
-        # FastEmbed returns generator of embeddings
-        query_embedding = list(embedding_model.embed([query]))[0].tolist()
+        # Use cached embedding (avoids regenerating for repeated queries)
+        query_embedding = list(_get_cached_embedding(query))
+        if not query_embedding:
+            return {"results": [], "message": "Embedding model not available", "error": True}
         
         pipeline = [
             {
@@ -239,16 +246,17 @@ def search_vector_db(query: str, scope_channels: List[str], top_k: int = 10) -> 
 def find_experts_in_db(topic: str, scope_channels: List[str], top_k: int = 5) -> Dict[str, Any]:
     """Find topic experts using vector search aggregation"""
     db = db_instance.get_db()
-    embedding_model = db_instance.get_embedding_model()
     
-    if db is None or embedding_model is None:
-        return {"experts": [], "message": "Database or model not available"}
+    if db is None:
+        return {"experts": [], "message": "Database not available"}
     
     if not scope_channels:
         return {"experts": [], "message": "No channels in scope"}
     
-    # FastEmbed returns generator of embeddings
-    query_embedding = list(embedding_model.embed([topic]))[0].tolist()
+    # Use cached embedding
+    query_embedding = list(_get_cached_embedding(topic))
+    if not query_embedding:
+        return {"experts": [], "message": "Embedding model not available"}
     
     # Pipeline uses weighted scoring: avg_score * log(message_count + 1)
     # This balances relevance quality with depth of knowledge
@@ -319,10 +327,10 @@ def search_glossary(term: str) -> Dict[str, Any]:
     """Search internal glossary for term definitions"""
     db = db_instance.get_db()
     if db is None:
-        return {"definitions": [], "message": "Database not available"}
+        return {"success": False, "definitions": [], "error": "Database not available"}
     
     if "glossary" not in db.list_collection_names():
-        return {"definitions": [], "message": "No glossary collection"}
+        return {"success": False, "definitions": [], "error": "No glossary collection"}
     
     regex_query = {"$regex": term, "$options": "i"}
     results = list(db.glossary.find({

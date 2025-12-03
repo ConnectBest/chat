@@ -54,6 +54,10 @@ def get_user_email(user_id: str) -> Optional[str]:
     return user.get("email") if user else None
 
 
+# Request timeout in seconds
+REQUEST_TIMEOUT = 10
+
+
 def _get_zoom_token() -> str:
     """Get Zoom access token"""
     if not all([ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET, ZOOM_ACCOUNT_ID]):
@@ -65,7 +69,8 @@ def _get_zoom_token() -> str:
     resp = requests.post(
         "https://zoom.us/oauth/token",
         headers={"Authorization": f"Basic {b64_creds}"},
-        data={"grant_type": "account_credentials", "account_id": ZOOM_ACCOUNT_ID}
+        data={"grant_type": "account_credentials", "account_id": ZOOM_ACCOUNT_ID},
+        timeout=REQUEST_TIMEOUT
     )
     resp.raise_for_status()
     return resp.json()["access_token"]
@@ -106,7 +111,8 @@ def _create_zoom_meeting(topic: str, start_time: datetime, duration: int) -> Dic
                 "join_before_host": True,
                 "waiting_room": False
             }
-        }
+        },
+        timeout=REQUEST_TIMEOUT
     )
     resp.raise_for_status()
     data = resp.json()

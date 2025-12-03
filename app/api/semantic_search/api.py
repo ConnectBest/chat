@@ -5,6 +5,7 @@ Provides instant search results as user types each character.
 Uses MongoDB Atlas Vector Search for semantic matching.
 """
 
+import asyncio
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -14,6 +15,7 @@ from fastembed import TextEmbedding
 from typing import List, Optional, AsyncGenerator
 from datetime import datetime
 from contextlib import asynccontextmanager
+from functools import lru_cache
 import os
 import time
 
@@ -22,7 +24,7 @@ os.environ["LOKY_MAX_CPU_COUNT"] = "1"
 
 # Configuration
 MONGO_URI = os.getenv("MONGO_URI")
-DATABASE_NAME = "connectbest_chat"
+DATABASE_NAME = os.getenv("MONGO_DATABASE", "connectbest_chat")
 VECTOR_INDEX_NAME = "vector_index"
 EMBEDDING_FIELD = "embedding"
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
@@ -181,7 +183,7 @@ def search_messages(query: str, channel_ids: List[str], limit: int = 10) -> List
                 "as": "channel"
             }
         },
-        # Project final shape
+        # Project final shape with date conversion in pipeline
         {
             "$project": {
                 "_id": 0,
@@ -189,23 +191,20 @@ def search_messages(query: str, channel_ids: List[str], limit: int = 10) -> List
                 "text": "$msg.text",
                 "author_name": {"$ifNull": [{"$arrayElemAt": ["$author.display_name", 0]}, "Unknown"]},
                 "channel_name": {"$ifNull": [{"$arrayElemAt": ["$channel.name", 0]}, "Unknown"]},
-                "created_at": "$msg.created_at",
+                "created_at": {
+                    "$dateToString": {
+                        "format": "%Y-%m-%dT%H:%M:%SZ",
+                        "date": "$msg.created_at",
+                        "onNull": ""
+                    }
+                },
                 "score": 1
             }
         },
         {"$limit": limit}
     ]
     
-    results = list(db.message_embeddings.aggregate(pipeline))
-    
-    # Format dates
-    for r in results:
-        if isinstance(r.get("created_at"), datetime):
-            r["created_at"] = r["created_at"].isoformat()
-        else:
-            r["created_at"] = str(r.get("created_at", ""))
-    
-    return results
+    return list(db.message_embeddings.aggregate(pipeline))
 
 
 # =============================================================================
@@ -233,20 +232,20 @@ async def semantic_search(
     Semantic search endpoint - call on every keystroke for typeahead.
     GET method only for efficient caching and CDN support.
     """
-    import time
     start = time.time()
+    loop = asyncio.get_event_loop()
     
-    # Get user and their channels
-    user_id = get_user_id(username)
+    # Run blocking MongoDB operations in executor to avoid blocking event loop
+    user_id = await loop.run_in_executor(None, get_user_id, username)
     if not user_id:
         raise HTTPException(status_code=404, detail=f"User '{username}' not found")
     
-    channel_ids = get_user_channels(user_id)
+    channel_ids = await loop.run_in_executor(None, get_user_channels, user_id)
     if not channel_ids:
         raise HTTPException(status_code=404, detail="User has no channel access")
     
-    # Perform search
-    results = search_messages(q, channel_ids, limit)
+    # Perform search in executor
+    results = await loop.run_in_executor(None, search_messages, q, channel_ids, limit)
     
     search_time = (time.time() - start) * 1000
     

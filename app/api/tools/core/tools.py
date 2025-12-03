@@ -4,8 +4,8 @@ LangChain Tools for ConnectBest AI Agent
 Clean, optimized tool definitions with Pydantic schemas.
 """
 
-import contextvars
 import re
+import threading
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
 from pydantic import BaseModel, Field
@@ -26,20 +26,21 @@ from .meeting_tools import schedule_meeting_tool
 
 
 # =============================================================================
-# USER CONTEXT
+# USER CONTEXT (Thread-local storage for async safety)
 # =============================================================================
 
-_current_user_id: contextvars.ContextVar[str] = contextvars.ContextVar('current_user_id', default='')
+# Use threading.local() for thread-safe user context
+_user_context = threading.local()
 
 
 def set_current_user(user_id: str):
-    """Set current user for tool execution"""
-    _current_user_id.set(user_id)
+    """Set current user for tool execution (thread-safe)"""
+    _user_context.user_id = user_id
 
 
 def get_current_user() -> str:
-    """Get current user ID"""
-    return _current_user_id.get()
+    """Get current user ID (thread-safe)"""
+    return getattr(_user_context, 'user_id', '')
 
 
 # =============================================================================

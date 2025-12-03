@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 
-from pymongo import MongoClient, DESCENDING
+from pymongo import MongoClient, DESCENDING, ReturnDocument
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_groq import ChatGroq
 from langchain.agents import create_agent
@@ -78,25 +78,27 @@ class MemoryManager:
             print(f"Index warning: {e}")
     
     def get_or_create_session(self, user_id: str) -> str:
+        """Atomically get or create a session to prevent race conditions."""
         cutoff = datetime.now() - timedelta(hours=SESSION_TTL_HOURS)
         
-        existing = self.collection.find_one(
+        # Use atomic find_one_and_update with upsert to prevent race condition
+        # If session exists, return it. If not, create new one atomically.
+        result = self.collection.find_one_and_update(
             {"user_id": user_id, "created_at": {"$gte": cutoff}},
+            {
+                "$setOnInsert": {
+                    "user_id": user_id,
+                    "session_id": str(uuid.uuid4()),
+                    "created_at": datetime.now(),
+                    "updated_at": datetime.now(),
+                    "messages": []
+                }
+            },
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
             sort=[("created_at", DESCENDING)]
         )
-        
-        if existing:
-            return existing["session_id"]
-        
-        session_id = str(uuid.uuid4())
-        self.collection.insert_one({
-            "user_id": user_id,
-            "session_id": session_id,
-            "created_at": datetime.now(),
-            "updated_at": datetime.now(),
-            "messages": []
-        })
-        return session_id
+        return result["session_id"]
     
     def load_messages(self, session_id: str, limit: int = 10) -> List:
         session = self.collection.find_one({"session_id": session_id})

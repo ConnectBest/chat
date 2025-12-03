@@ -114,11 +114,9 @@ def _summarize_all_channels(scope_channels: List[str], limit_per_channel: int = 
     if db is None:
         return {"success": False, "message": "Database not available"}
     
-    # Get channel names
-    channel_names = {}
-    for ch_id in scope_channels:
-        ch = db.channels.find_one({"id": ch_id})
-        channel_names[ch_id] = ch.get("name", ch_id) if ch else ch_id
+    # Get channel names in a single batch query (fixes N+1 problem)
+    channels = db.channels.find({"id": {"$in": scope_channels}}, {"id": 1, "name": 1})
+    channel_names = {ch["id"]: ch.get("name", ch["id"]) for ch in channels}
     
     # Fetch messages in parallel
     def fetch_channel(channel_id):
