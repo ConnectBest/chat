@@ -4,9 +4,12 @@ import { getToken } from 'next-auth/jwt';
 
 // Middleware runs in Edge Runtime - cannot import nodemailer or Node.js modules
 export async function middleware(request: NextRequest) {
+  // ✅ 這裡先算出 secret，跟 lib/auth.ts 裡的邏輯一致
+  const secret = process.env.NEXTAUTH_SECRET || 'development-secret-change-in-production';
+
   const token = await getToken({ 
     req: request,
-    secret: process.env.NEXTAUTH_SECRET 
+    secret,
   });
   
   const { pathname } = request.nextUrl;

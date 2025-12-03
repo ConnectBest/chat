@@ -57,7 +57,7 @@ export default function LoginPage() {
         }
       } else if (result?.ok) {
         // Successful login
-        const callbackUrl = searchParams.get('callbackUrl') || '/chat/general';
+        const callbackUrl = searchParams.get('callbackUrl') || '/chat';
         router.push(callbackUrl);
         router.refresh();
       }
@@ -72,7 +72,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await signIn('google', { 
-        callbackUrl: searchParams.get('callbackUrl') || '/chat/general' 
+        callbackUrl: searchParams.get('callbackUrl') || '/chat' 
       });
     } catch (err) {
       setError('Google sign-in failed');

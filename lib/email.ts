@@ -98,27 +98,29 @@ If you didn't request this verification, please ignore this email.
     `
   };
 
+  const isDev = process.env.NODE_ENV === 'development';
+
   try {
-    // In development, log the email instead of sending
-    if (process.env.NODE_ENV === 'development') {
-      console.log('📧 Email Verification (Development Mode)');
+    // 開發模式：多印 log，**但不提早 return，一定會跑 sendMail**
+    if (isDev) {
+      console.log('📧 Sending Verification Email');
       console.log('To:', to);
       console.log('Code:', verificationCode);
       console.log('Login URL:', loginUrl);
-      console.log('---');
-      return { success: true, dev: true };
     }
 
     await transporter.sendMail(mailOptions);
-    return { success: true };
+    return { success: true, dev: isDev };
   } catch (error) {
     console.error('Failed to send verification email:', error);
-    // In development, still return success and log
-    if (process.env.NODE_ENV === 'development') {
-      console.log('⚠️  Email sending failed but continuing in dev mode');
-      console.log('Verification code:', verificationCode);
-      return { success: true, dev: true };
+
+    // dev 環境：不要把整個登入流程炸掉，但回傳失敗給呼叫端判斷
+    if (isDev) {
+      console.log('⚠️ Email sending failed in dev mode, please check SMTP (.env.local & Mailtrap)');
+      return { success: false, dev: true };
     }
+
+    // prod：讓上層知道真的寄信失敗
     throw new Error('Failed to send verification email');
   }
 }
@@ -141,22 +143,34 @@ export async function sendWelcomeEmail(to: string, userName: string) {
             <li>🔍 Search through message history</li>
             <li>👥 Create channels and direct messages</li>
           </ul>
-          <p><a href="${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/chat/general" style="background: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Start Chatting</a></p>
+          <p><a href="${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/chat" style="background: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Start Chatting</a></p>
         </body>
       </html>
     `
   };
 
-  if (process.env.NODE_ENV === 'development') {
-    console.log('📧 Welcome Email (Dev Mode) - To:', to);
-    return { success: true, dev: true };
-  }
-
   try {
+    const hasRealSmtp =
+      !!process.env.EMAIL_HOST &&
+      !!process.env.EMAIL_USER &&
+      !!process.env.EMAIL_PASSWORD;
+
+    if (!hasRealSmtp) {
+      console.log('📧 Welcome Email (SMTP NOT CONFIGURED) - To:', to);
+      return { success: true, dev: true };
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📧 Sending welcome email via real SMTP (development mode) - To:', to);
+    }
+
     await transporter.sendMail(mailOptions);
     return { success: true };
   } catch (error) {
     console.error('Failed to send welcome email:', error);
+    if (process.env.NODE_ENV === 'development') {
+      return { success: false, dev: true };
+    }
     return { success: false };
   }
 }
