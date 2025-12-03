@@ -1,10 +1,10 @@
 """
 Meeting Tools - Zoom meeting scheduling with Gmail invitations
 
-Simplified and optimized:
+Simplified:
 - Clean Zoom API integration
 - Gmail OAuth for invitations
-- No redundant user lookups
+- Email-only participant list (no name lookups)
 """
 
 from typing import List, Dict, Optional
@@ -20,7 +20,6 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from dotenv import load_dotenv
 
-from .data_tools import find_users
 from .db import db_instance
 
 load_dotenv()
@@ -173,38 +172,31 @@ def schedule_meeting_tool(
     start_time: str,
     duration_minutes: int,
     requesting_user_id: str,
-    participant_emails: List[str] = [],
-    participant_names: List[str] = [],
-    host_email: str = None
+    participant_emails: List[str] = []
 ) -> Dict:
     """
     Schedule a Zoom meeting and send invitations.
+    
+    Args:
+        topic: Meeting topic/title
+        start_time: ISO format start time
+        duration_minutes: Meeting duration
+        requesting_user_id: ID of user requesting the meeting (becomes host)
+        participant_emails: List of participant email addresses
     """
     try:
         start_dt = datetime.fromisoformat(start_time)
         
-        # Resolve names to emails
-        resolved = []
-        for name in participant_names:
-            result = find_users(name, limit=1)
-            if result.get("users"):
-                email = result["users"][0].get("email")
-                if email:
-                    resolved.append(email)
+        # Validate provided emails
+        valid_emails = [e.strip() for e in participant_emails if validate_email(e.strip())]
         
-        # Combine emails
-        all_emails = list(set(participant_emails + resolved))
-        
-        # Add requesting user
-        user_email = get_user_email(requesting_user_id)
-        if user_email and user_email not in all_emails:
-            all_emails.append(user_email)
-        
-        # Validate emails
-        valid_emails = [e for e in all_emails if validate_email(e)]
+        # Add requesting user's email if available
+        host_email = get_user_email(requesting_user_id)
+        if host_email and host_email not in valid_emails:
+            valid_emails.append(host_email)
         
         if not valid_emails:
-            return {"success": False, "message": "No valid email addresses"}
+            return {"success": False, "message": "No valid email addresses provided. Please use email format (e.g., user@example.com)"}
         
         # Create meeting
         meeting = _create_zoom_meeting(topic, start_dt, duration_minutes)
@@ -217,8 +209,8 @@ def schedule_meeting_tool(
             "meeting": meeting,
             "email_status": email_result,
             "participants": valid_emails,
-            "host_email": user_email if user_email else "",
-            "message": f"Meeting scheduled. Invitations sent to {email_result['successful']} people."
+            "host_email": host_email if host_email else "",
+            "message": f"Meeting scheduled. Invitations sent to {email_result['successful']} participants."
         }
     
     except Exception as e:

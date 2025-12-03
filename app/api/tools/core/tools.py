@@ -68,7 +68,7 @@ class SummarizeChannelInput(BaseModel):
 
 
 class ScheduleMeetingInput(BaseModel):
-    attendees: str = Field(..., description="Attendee name(s) or email(s), comma-separated for multiple")
+    attendee_emails: str = Field(..., description="Attendee email address(es), comma-separated for multiple (e.g., 'user@example.com, other@example.com')")
     topic: str = Field("Quick Sync", description="Meeting topic (default: 'Quick Sync')")
     duration_minutes: str = Field("30", description="Duration in minutes (default: 30)")
     when: str = Field("now", description="When: 'now', '2pm', 'tomorrow 10am'")
@@ -121,25 +121,8 @@ def _parse_time(when: str) -> datetime:
 
 
 def _is_email(text: str) -> bool:
+    """Validate email format"""
     return bool(re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', text.strip()))
-
-
-def _resolve_attendee(attendee: str) -> Dict[str, Any]:
-    """Resolve attendee name/email to contact info"""
-    attendee = attendee.strip()
-    
-    if _is_email(attendee):
-        result = find_users(attendee, limit=1)
-        users = result.get("users", [])
-        if users:
-            return {"email": users[0].get("email", attendee), "display_name": users[0].get("display_name"), "is_external": False}
-        return {"email": attendee, "display_name": attendee.split('@')[0], "is_external": True}
-    else:
-        result = find_users(attendee, limit=1)
-        users = result.get("users", [])
-        if users:
-            return {"email": users[0].get("email", ""), "display_name": users[0].get("display_name"), "is_external": False}
-        return {"email": "", "display_name": attendee, "error": f"User '{attendee}' not found"}
 
 
 # =============================================================================
@@ -261,8 +244,8 @@ def summarize_channel_func(channel_name: str, message_limit: str = "50") -> str:
     return f"**#{channel}** ({count} messages)\n\n{summary}"
 
 
-def schedule_meeting_func(attendees: str, topic: str = "Quick Sync", duration_minutes: str = "30", when: str = "now", exclude_me: str = "no") -> str:
-    """Schedule a meeting - requesting user is host and added by default"""
+def schedule_meeting_func(attendee_emails: str, topic: str = "Quick Sync", duration_minutes: str = "30", when: str = "now", exclude_me: str = "no") -> str:
+    """Schedule a meeting - requesting user is host and added by default. Only accepts email addresses."""
     duration = _parse_int(duration_minutes, 30)
     start_time = _parse_time(when)
     
@@ -270,34 +253,32 @@ def schedule_meeting_func(attendees: str, topic: str = "Quick Sync", duration_mi
     requesting_user_id = get_current_user()
     include_requester = exclude_me.lower() not in ["yes", "true", "1"]
     
-    attendee_list = [a.strip() for a in attendees.split(",") if a.strip()]
-    if not attendee_list:
-        return "Please provide at least one attendee."
+    # Parse and validate email addresses
+    email_list = [e.strip() for e in attendee_emails.split(",") if e.strip()]
     
-    resolved = []
-    errors = []
+    if not email_list:
+        return "Please provide at least one attendee email address."
     
-    for att in attendee_list:
-        r = _resolve_attendee(att)
-        if r.get("error"):
-            errors.append(r["error"])
-        elif not r.get("email"):
-            errors.append(f"No email for '{att}'")
+    # Validate all are proper email addresses
+    valid_emails = []
+    invalid_entries = []
+    
+    for email in email_list:
+        if _is_email(email):
+            valid_emails.append(email)
         else:
-            resolved.append(r)
+            invalid_entries.append(email)
     
-    if not resolved:
-        return "Could not resolve any attendees. " + " ".join(errors)
+    if not valid_emails:
+        return f"No valid email addresses provided. Please use email format (e.g., user@example.com). Invalid entries: {', '.join(invalid_entries)}"
     
-    emails = [r["email"] for r in resolved]
-    
-    # Pass the actual requesting user ID so they become the host
+    # Schedule the meeting
     result = schedule_meeting_tool(
         topic=topic,
         start_time=start_time.isoformat(),
         duration_minutes=duration,
         requesting_user_id=requesting_user_id if include_requester else "",
-        participant_emails=emails
+        participant_emails=valid_emails
     )
     
     if not result.get("success"):
@@ -305,28 +286,20 @@ def schedule_meeting_func(attendees: str, topic: str = "Quick Sync", duration_mi
     
     meeting = result.get("meeting", {})
     time_str = start_time.strftime("%A, %B %d at %I:%M %p")
-    
-    attendee_strs = []
-    for r in resolved:
-        if r.get("is_external"):
-            attendee_strs.append(f"{r['display_name']} ({r['email']}) _(external)_")
-        else:
-            attendee_strs.append(f"{r['display_name']} ({r['email']})")
-    
-    # Get host info
     host_email = result.get("host_email", "")
+    participants = result.get("participants", valid_emails)
     
     output = f"✅ **Meeting Scheduled!**\n\n"
     output += f"**Topic:** {topic}\n"
     if host_email:
         output += f"**Host:** {host_email}\n"
-    output += f"**Attendees:** {', '.join(attendee_strs)}\n"
+    output += f"**Attendees:** {', '.join(participants)}\n"
     output += f"**When:** {time_str}\n"
     output += f"**Duration:** {duration} minutes\n"
     output += f"**Join:** {meeting.get('join_url', 'N/A')}\n"
     
-    if errors:
-        output += f"\n⚠️ Warnings: {'; '.join(errors)}"
+    if invalid_entries:
+        output += f"\n⚠️ Skipped invalid entries (not email format): {', '.join(invalid_entries)}"
     
     return output
 
@@ -385,7 +358,7 @@ def create_tools() -> List[StructuredTool]:
         StructuredTool.from_function(
             func=schedule_meeting_func,
             name="schedule_meeting",
-            description="Schedule a Zoom meeting. The requesting user is automatically added as host. Provide attendee name(s) or email(s), comma-separated for multiple. Use exclude_me='yes' ONLY if user explicitly says 'don't add me' or 'without me'.",
+            description="Schedule a Zoom meeting. The requesting user is automatically added as host. Provide attendee email addresses only (comma-separated for multiple, e.g., 'user@example.com, other@example.com'). Use exclude_me='yes' ONLY if user explicitly says 'don't add me' or 'without me'.",
             args_schema=ScheduleMeetingInput
         ),
         StructuredTool.from_function(
