@@ -26,7 +26,8 @@
       "Bash(open \"https://github.com/ConnectBest/chat/actions/runs/19842054350\")",
       "Bash(git show:*)",
       "Bash(gh secret list:*)",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "ask": []
