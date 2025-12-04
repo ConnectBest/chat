@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import Link from 'next/link';
+import { getApiUrl } from '@/lib/apiConfig';
 
 const schema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -37,33 +38,57 @@ export default function LoginPage() {
   }, [searchParams, setValue]);
 
   async function onSubmit(values: { email: string; password: string; verificationCode?: string }) {
+    console.log('🔐 Starting login process...');
     setLoading(true);
     setError('');
 
     try {
-      const result = await signIn('credentials', {
-        email: values.email,
-        password: values.password,
-        verificationCode: values.verificationCode,
-        redirect: false,
+      console.log('📡 Sending login request to backend...');
+      // Login directly to backend
+      const response = await fetch(getApiUrl('auth/login'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email: values.email, 
+          password: values.password 
+        }),
       });
 
-      if (result?.error) {
-        if (result.error === 'VERIFICATION_REQUIRED') {
-          setNeedsVerification(true);
-          setError('📧 Verification code sent to your email! Please check your inbox.');
-        } else {
-          setError(result.error);
-        }
-      } else if (result?.ok) {
-        // Successful login
-        const callbackUrl = searchParams.get('callbackUrl') || '/chat/general';
-        router.push(callbackUrl);
-        router.refresh();
+      console.log('📥 Response status:', response.status);
+      const data = await response.json();
+      console.log('📦 Response data:', data);
+
+      if (!response.ok) {
+        console.error('❌ Login failed:', data.error);
+        setError(data.error || 'Invalid credentials');
+        setLoading(false);
+        return;
       }
+
+      console.log('✅ Backend authentication successful!');
+      
+      // Store token and user data
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      console.log('💾 Token and user stored in localStorage');
+      
+      // Set cookie for middleware
+      document.cookie = `auth-token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}`; // 7 days
+      console.log('🍪 Cookie set for middleware');
+
+      console.log('👤 User role:', data.user.role);
+
+      // Redirect based on role
+      const callbackUrl = searchParams.get('callbackUrl');
+      const redirectUrl = data.user.role === 'admin' && !callbackUrl 
+        ? '/admin' 
+        : callbackUrl || '/chat/general';
+      
+      console.log('🚀 Redirecting to:', redirectUrl);
+      window.location.href = redirectUrl;
     } catch (err) {
+      console.error('💥 Login exception:', err);
       setError('An unexpected error occurred');
-    } finally {
       setLoading(false);
     }
   }
@@ -71,9 +96,17 @@ export default function LoginPage() {
   async function handleGoogleSignIn() {
     setLoading(true);
     try {
-      await signIn('google', { 
-        callbackUrl: searchParams.get('callbackUrl') || '/chat/general' 
-      });
+      // Get OAuth URL from backend
+      const response = await fetch(getApiUrl('auth/google'));
+      const data = await response.json();
+      
+      if (data.auth_url) {
+        // Redirect to Google OAuth
+        window.location.href = data.auth_url;
+      } else {
+        setError('Failed to get Google sign-in URL');
+        setLoading(false);
+      }
     } catch (err) {
       setError('Google sign-in failed');
       setLoading(false);

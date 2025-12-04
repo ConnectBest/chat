@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChannelView } from '@/components/chat/ChannelView';
 
-export default function ChannelPage({ params }: { params: { channelId: string } }) {
-  return <ChannelView channelId={params.channelId} />;
+export default async function ChannelPage({ params }: { params: Promise<{ channelId: string }> }) {
+  const { channelId } = await params;
+  return <ChannelView channelId={channelId} />;
 }

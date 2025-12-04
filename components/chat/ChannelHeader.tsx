@@ -7,6 +7,8 @@ import { CallControls } from './CallControls';
 import { NotificationSettings } from './NotificationSettings';
 import { HuddlePanel } from './HuddlePanel';
 import { CanvasEditor } from './CanvasEditor';
+import { api } from '@/lib/api';
+import { getApiUrl } from '@/lib/apiConfig';
 
 interface User {
   id: string;
@@ -52,18 +54,42 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
 
   // Load users and channel members
   useEffect(() => {
-    // Mock users - Static code Backend team please change it to dynamic
-    const mockUsers: User[] = [
-      { id: '1', name: 'Demo User', email: 'demo@test.com', phone: '+1234567890', status: 'online' },
-      { id: '2', name: 'Alice Johnson', email: 'alice@test.com', phone: '+1234567891', status: 'online' },
-      { id: '3', name: 'Bob Smith', email: 'bob@test.com', phone: '+1234567892', status: 'away' },
-      { id: '4', name: 'Carol Williams', email: 'carol@test.com', phone: '+1234567893', status: 'offline' },
-      { id: '5', name: 'David Brown', email: 'david@test.com', phone: '+1234567894', status: 'online' },
-    ];
-    setAllUsers(mockUsers);
-    
-    // Mock current members - Static code Backend team please change it to dynamic
-    setChannelMembers([mockUsers[0], mockUsers[1]]);
+    async function loadData() {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      try {
+        // Load all users
+        const usersResponse = await fetch(getApiUrl('users'), {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (usersResponse.ok) {
+          const usersData = await usersResponse.json();
+          setAllUsers(usersData.users || []);
+        }
+
+        // Load channel details with members
+        const channelData = await api.getChannelDetails(channelId, token);
+        if (channelData.channel && channelData.channel.members) {
+          const members = channelData.channel.members.map((m: any) => ({
+            id: m.user_id,
+            name: m.name || 'Unknown',
+            email: m.email || '',
+            avatar: m.avatar_url || m.avatar,
+            status: m.status || 'offline' as const
+          }));
+          setChannelMembers(members);
+        }
+      } catch (error: any) {
+        console.error('Failed to load data:', error);
+        console.error('Error details:', error.response?.data || error.message);
+        // Set empty arrays on error to prevent UI breaking
+        setAllUsers([]);
+        setChannelMembers([]);
+      }
+    }
+
+    loadData();
   }, [channelId]);
 
   // Search users by name, email, or phone
@@ -89,17 +115,37 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
   }, [searchQuery, allUsers, channelMembers]);
 
   function handleAddMember(user: User) {
-    setChannelMembers(prev => [...prev, user]);
-    setSearchQuery('');
-    setSearchResults([]);
-    // Static code Backend team please change it to dynamic - POST /api/channels/:id/members
-    console.log('Added member:', user);
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    
+    // Add to backend
+    api.addChannelMember(channelId, user.id, token)
+      .then(() => {
+        setChannelMembers(prev => [...prev, user]);
+        setSearchQuery('');
+        setSearchResults([]);
+        console.log('Added member:', user);
+      })
+      .catch(error => {
+        console.error('Failed to add member:', error);
+        alert('Failed to add member to channel');
+      });
   }
 
   function handleRemoveMember(userId: string) {
-    setChannelMembers(prev => prev.filter(m => m.id !== userId));
-    // Static code Backend team please change it to dynamic - DELETE /api/channels/:id/members/:userId
-    console.log('Removed member:', userId);
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    
+    // Remove from backend
+    api.removeChannelMember(channelId, userId, token)
+      .then(() => {
+        setChannelMembers(prev => prev.filter(m => m.id !== userId));
+        console.log('Removed member:', userId);
+      })
+      .catch(error => {
+        console.error('Failed to remove member:', error);
+        alert('Failed to remove member from channel');
+      });
   }
 
   function handleRenameChannel() {
@@ -108,7 +154,6 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
       return;
     }
     
-    // Static code Backend team please change it to dynamic - PUT /api/channels/:id
     console.log('Renamed channel to:', newChannelName);
     onUpdateChannel?.(newChannelName, channelMembers.map(m => m.id));
     setShowRenameChannel(false);
@@ -117,7 +162,6 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
 
   function toggleLock() {
     setIsLocked(!isLocked);
-    // Static code Backend team please change it to dynamic - PUT /api/channels/:id/lock
     console.log(`Channel ${isLocked ? 'unlocked (public)' : 'locked (private)'}:`, channelId);
   }
 
@@ -215,7 +259,7 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
                             onClick={() => handleAddMember(user)}
                             className="w-full flex items-center gap-2 p-2 hover:bg-white/10 rounded transition text-left"
                           >
-                            <Avatar name={user.name} status={user.status} size="sm" />
+                            <Avatar src={user.avatar} name={user.name} status={user.status} size="sm" />
                             <div className="flex-1 min-w-0">
                               <div className="text-white text-sm font-medium truncate">{user.name}</div>
                               <div className="text-white/50 text-xs truncate">{user.email}</div>
@@ -249,7 +293,7 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
                       key={member.id}
                       className="flex items-center gap-2 p-2 rounded bg-white/5 group"
                     >
-                      <Avatar name={member.name} status={member.status} size="sm" />
+                      <Avatar src={member.avatar} name={member.name} status={member.status} size="sm" />
                       <div className="flex-1 min-w-0">
                         <div className="text-white text-sm font-medium truncate">{member.name}</div>
                         <div className="text-white/50 text-xs truncate">{member.email}</div>
@@ -358,7 +402,6 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
 
             <div className="p-2 border-t border-white/10 bg-white/5">
               <p className="text-[10px] text-white/40 text-center">
-                Static code Backend team please change it to dynamic
               </p>
             </div>
           </div>

@@ -1,13 +1,21 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { getApiUrl } from '@/lib/apiConfig';
 
 interface Message {
   id: string;
   content: string;
-  userId: string;
-  createdAt: string;
+  userId?: string;
+  user_id?: string;
+  createdAt?: string;
+  created_at?: string;
+  user?: {
+    id: string;
+    name: string;
+    avatar?: string;
+  };
   replies?: Message[];
 }
 
@@ -17,24 +25,73 @@ interface ThreadPanelProps {
 }
 
 export function ThreadPanel({ message, onClose }: ThreadPanelProps) {
-  const [replies, setReplies] = useState<Message[]>(message.replies || []);
+  const [replies, setReplies] = useState<Message[]>([]);
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Fetch thread replies when component mounts
+  useEffect(() => {
+    fetchReplies();
+  }, [message.id]);
+
+  async function fetchReplies() {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch(getApiUrl(`chat/messages/${message.id}/replies`), {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setReplies(data.replies || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch thread replies:', error);
+    }
+  }
 
   async function handleReply() {
     if (!content.trim()) return;
     setLoading(true);
-    // Static code Backend team please change it to dynamic (POST /api/messages/:id/replies)
-    const reply: Message = {
-      id: (Date.now()).toString(),
-      content: content.trim(),
-      userId: '1',
-      createdAt: new Date().toISOString()
-    };
-    setReplies(prev => [...prev, reply]);
-    setContent('');
-    setLoading(false);
+    
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('Please log in to reply');
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch(getApiUrl(`chat/messages/${message.id}/replies`), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ content: content.trim() })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to post reply');
+      }
+
+      const { reply } = await response.json();
+      setReplies(prev => [...prev, reply]);
+      setContent('');
+    } catch (error) {
+      console.error('Failed to post reply:', error);
+      alert('Failed to post reply. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   }
+
+  const messageUser = message.user || { name: 'Unknown User' };
+  const messageCreatedAt = message.createdAt || message.created_at || new Date().toISOString();
 
   return (
     <div className="w-96 border-l border-white/10 flex flex-col" style={{ background: 'linear-gradient(to bottom, #3d4b6d, #2f3a52)' }}>
@@ -46,21 +103,26 @@ export function ThreadPanel({ message, onClose }: ThreadPanelProps) {
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
         <div className="rounded bg-white/10 px-3 py-2 text-sm">
           <div className="text-white/70 text-xs mb-1">
-            {new Date(message.createdAt).toLocaleString()} • user {message.userId}
+            {new Date(messageCreatedAt).toLocaleString()} • {messageUser.name}
           </div>
           <div className="text-white font-medium">{message.content}</div>
         </div>
 
-        <div className="text-xs text-white/50 font-semibold">{replies.length} replies</div>
+        <div className="text-xs text-white/50 font-semibold">{replies.length} {replies.length === 1 ? 'reply' : 'replies'}</div>
 
-        {replies.map(r => (
-          <div key={r.id} className="rounded bg-white/5 px-3 py-2 text-sm ml-4">
-            <div className="text-white/70 text-xs mb-1">
-              {new Date(r.createdAt).toLocaleString()} • user {r.userId}
+        {replies.map(r => {
+          const replyUser = r.user || { name: 'Unknown User' };
+          const replyCreatedAt = r.createdAt || r.created_at || new Date().toISOString();
+          
+          return (
+            <div key={r.id} className="rounded bg-white/5 px-3 py-2 text-sm ml-4">
+              <div className="text-white/70 text-xs mb-1">
+                {new Date(replyCreatedAt).toLocaleString()} • {replyUser.name}
+              </div>
+              <div className="text-white">{r.content}</div>
             </div>
-            <div className="text-white">{r.content}</div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <form onSubmit={e => { e.preventDefault(); handleReply(); }} className="p-3 border-t border-white/10 flex gap-2">

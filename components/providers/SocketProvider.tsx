@@ -3,7 +3,6 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 import { io, Socket } from 'socket.io-client';
 import { useSession } from 'next-auth/react';
 
-// Static code Backend team please change it to dynamic
 interface SocketContextValue {
   socket: Socket | null;
   connected: boolean;
@@ -11,24 +10,59 @@ interface SocketContextValue {
 
 const SocketContext = createContext<SocketContextValue | undefined>(undefined);
 
+const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5001';
+
 export function SocketProvider({ children }: { children: React.ReactNode }) {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [connected, setConnected] = useState(false);
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    if (session?.user) {
-      // Static code Backend team please change it to dynamic (Socket endpoint: /ws)
-      const s = io('/ws', { auth: { token: 'Static code Backend team please change it to dynamic:jwt' } });
-      socketRef.current = s;
-      s.on('connect', () => setConnected(true));
-      s.on('disconnect', () => setConnected(false));
-      return () => { s.disconnect(); };
+    // Only connect if we have a session and an access token
+    if (status === 'authenticated' && session?.user && (session.user as any)?.accessToken) {
+      const token = (session.user as any).accessToken;
+      
+      try {
+        const s = io(SOCKET_URL, { 
+          auth: { token },
+          transports: ['websocket', 'polling'],
+          autoConnect: true,
+          reconnection: true,
+          reconnectionDelay: 1000,
+          reconnectionAttempts: 5
+        });
+        
+        socketRef.current = s;
+        
+        s.on('connect', () => {
+          console.log('Socket connected');
+          setConnected(true);
+        });
+        
+        s.on('disconnect', () => {
+          console.log('Socket disconnected');
+          setConnected(false);
+        });
+        
+        s.on('connect_error', (error) => {
+          // Silently handle connection errors - don't throw
+          console.warn('Socket connection error (will retry):', error.message);
+          setConnected(false);
+        });
+        
+        return () => { 
+          s.disconnect(); 
+        };
+      } catch (error) {
+        console.warn('Failed to initialize socket:', error);
+      }
     } else if (socketRef.current) {
+      // Disconnect if session is lost
       socketRef.current.disconnect();
       socketRef.current = null;
+      setConnected(false);
     }
-  }, [session]);
+  }, [session, status]);
 
   return (
     <SocketContext.Provider value={{ socket: socketRef.current, connected }}>

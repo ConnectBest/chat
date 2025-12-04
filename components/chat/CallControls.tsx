@@ -53,7 +53,6 @@ export function CallControls({ channelId, isDM, dmUserId, dmUserName }: CallCont
       setCallType('audio');
       setCallDuration(0);
       
-      // Static code Backend team please change it to dynamic - WebRTC signaling
       console.log('Audio call started with:', dmUserId || channelId);
     } catch (error) {
       console.error('Error starting audio call:', error);
@@ -75,7 +74,6 @@ export function CallControls({ channelId, isDM, dmUserId, dmUserName }: CallCont
       setCallType('video');
       setCallDuration(0);
       
-      // Static code Backend team please change it to dynamic - WebRTC signaling
       console.log('Video call started with:', dmUserId || channelId);
     } catch (error) {
       console.error('Error starting video call:', error);
@@ -122,7 +120,6 @@ export function CallControls({ channelId, isDM, dmUserId, dmUserName }: CallCont
         stopScreenShare();
       };
       
-      // Static code Backend team please change it to dynamic - Send screen stream to peers
       console.log('Screen sharing started');
     } catch (error) {
       console.error('Error starting screen share:', error);
@@ -163,7 +160,6 @@ export function CallControls({ channelId, isDM, dmUserId, dmUserName }: CallCont
     setIsScreenSharing(false);
     setCallDuration(0);
     
-    // Static code Backend team please change it to dynamic - Signal call end
     console.log('Call ended');
   }
 
@@ -369,7 +365,6 @@ export function CallControls({ channelId, isDM, dmUserId, dmUserName }: CallCont
             </div>
 
             <div className="text-center mt-4 text-white/40 text-xs">
-              Static code Backend team please change it to dynamic - WebRTC integration required
             </div>
           </div>
         </div>

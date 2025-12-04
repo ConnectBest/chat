@@ -2,7 +2,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
-// Static code Backend team please change it to dynamic
 interface User {
   id: string;
   email: string;
@@ -35,7 +34,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function login(email: string, password: string) {
     setLoading(true);
     try {
-      // Static code Backend team please change it to dynamic (POST /api/auth/login)
       const { data } = await axios.post('/api/auth/login', { email, password });
       setUser(data.user);
       if (data.token) { localStorage.setItem('mock_token', data.token); }
@@ -50,7 +48,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function register(email: string, password: string, name?: string) {
     setLoading(true);
     try {
-      // Static code Backend team please change it to dynamic (POST /api/auth/register)
       const { data } = await axios.post('/api/auth/register', { email, password, name });
       setUser(data.user);
       if (data.token) { localStorage.setItem('mock_token', data.token); }
@@ -65,7 +62,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function logout() {
     setLoading(true);
     try {
-      // Static code Backend team please change it to dynamic (POST /api/auth/logout)
       await axios.post('/api/auth/logout');
       setUser(null);
       localStorage.removeItem('mock_token');
@@ -75,7 +71,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function refresh() {
     setLoading(true);
     try {
-      // Static code Backend team please change it to dynamic (GET /api/auth/me)
       const token = typeof window !== 'undefined' ? localStorage.getItem('mock_token') : null;
       const { data } = await axios.get('/api/auth/me', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
       setUser(data.user);

@@ -63,7 +63,6 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
 
         <div className="p-2 border-t border-white/10 bg-white/5">
           <p className="text-[10px] text-white/40 text-center">
-            Static code Backend team please change it to dynamic
           </p>
         </div>
       </div>

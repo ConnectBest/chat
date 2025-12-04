@@ -1,10 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const body = await request.json().catch(() => ({}));
+    const body = await request.json();
     
     const response = await fetch(`${BACKEND_API_URL}/auth/login`, {
       method: 'POST',
@@ -18,14 +18,14 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: data.error || 'Login failed' },
+        { error: data.message || 'Login failed' },
         { status: response.status }
       );
     }
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('Proxy login error:', error);
     return NextResponse.json(
       { error: 'Failed to connect to authentication service' },
       { status: 500 }

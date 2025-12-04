@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { api } from '@/lib/api';
+import { getApiUrl } from '@/lib/apiConfig';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
@@ -27,25 +28,163 @@ export function ChannelSidebar() {
   const pathname = usePathname();
 
   useEffect(() => {
-    api.listChannels().then(data => setChannels(data.channels));
-    // Mock DMs - Static code Backend team please change it to dynamic
-    setDirectMessages([
-      { userId: '2', userName: 'Alice Johnson', status: 'online' as const, lastMessage: 'Hey! How are you?' },
-      { userId: '3', userName: 'Bob Smith', status: 'away' as const, lastMessage: 'See you tomorrow' },
-    ]);
+    const fetchChannels = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          console.log('No token found for channels');
+          return;
+        }
+
+        console.log('Fetching channels with token:', token.substring(0, 20) + '...');
+        const response = await fetch(getApiUrl('chat/channels'), {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        console.log('Channels response status:', response.status);
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Channels data:', data);
+          setChannels(data.channels || []);
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Failed to fetch channels:', response.status, errorData);
+          setChannels([]);
+        }
+      } catch (error) {
+        console.error('Error fetching channels:', error);
+        setChannels([]);
+      }
+    };
+
+    const fetchDMConversations = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          console.log('No token found for DM conversations');
+          return;
+        }
+
+        console.log('Fetching DM conversations with token:', token.substring(0, 20) + '...');
+        const data = await api.listDMConversations(token);
+        console.log('DM conversations response:', data);
+        const conversations = data.conversations || [];
+        setDirectMessages(conversations.map((conv: any) => ({
+          userId: conv.user_id,
+          userName: conv.user_name,
+          userAvatar: conv.user_avatar,
+          status: conv.user_status || 'offline',
+          lastMessage: conv.last_message,
+          unreadCount: conv.unreadCount || 0
+        })));
+      } catch (error: any) {
+        console.error('Error fetching DM conversations:', error);
+        console.error('Error details:', error.response?.data);
+        setDirectMessages([]);
+      }
+    };
+
+    fetchChannels();
+    fetchDMConversations();
+
+    // Note: Removed event listener that was causing excessive API calls
+    // Unread counts will be updated on next natural refresh
+  }, []);
+
+  // Function to manually refresh counts (called by ChannelView after marking as read)
+  useEffect(() => {
+    const handleRefreshSidebar = () => {
+      const refreshCounts = async () => {
+        try {
+          const token = localStorage.getItem('token');
+          if (!token) return;
+
+          const [channelsRes, conversationsRes] = await Promise.all([
+            fetch(getApiUrl('chat/channels'), {
+              headers: { 'Authorization': `Bearer ${token}` }
+            }),
+            fetch(getApiUrl('dm/conversations'), {
+              headers: { 'Authorization': `Bearer ${token}` }
+            })
+          ]);
+
+          if (channelsRes.ok) {
+            const channelsData = await channelsRes.json();
+            setChannels((channelsData.channels || []).map((ch: any) => ({
+              id: ch.id,
+              name: ch.name,
+              description: ch.description,
+              unreadCount: ch.unreadCount || 0
+            })));
+          }
+
+          if (conversationsRes.ok) {
+            const convsData = await conversationsRes.json();
+            setDirectMessages((convsData.conversations || []).map((conv: any) => ({
+              userId: conv.user_id,
+              userName: conv.user_name,
+              userAvatar: conv.user_avatar,
+              status: conv.user_status || 'offline',
+              lastMessage: conv.last_message,
+              unreadCount: conv.unreadCount || 0
+            })));
+          }
+        } catch (error) {
+          console.error('Error refreshing sidebar:', error);
+        }
+      };
+      refreshCounts();
+    };
+
+    window.addEventListener('refreshSidebar', handleRefreshSidebar);
+    return () => window.removeEventListener('refreshSidebar', handleRefreshSidebar);
   }, []);
 
   async function createChannel() {
     if (!newName.trim()) return;
     setLoading(true);
     try {
-      const { channel } = await api.createChannel(newName.trim());
-      setChannels(prev => prev.find(c => c.id === channel.id) ? prev : [...prev, channel]);
-      setOpen(false);
-      setNewName('');
-      router.push(`/chat/${channel.id}`);
-      setMobileMenuOpen(false);
-    } finally { setLoading(false); }
+      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      console.log('Creating channel with name:', newName.trim());
+      const response = await fetch(getApiUrl('chat/channels'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ name: newName.trim() })
+      });
+
+      console.log('Channel creation response status:', response.status);
+      const data = await response.json();
+      console.log('Channel creation response data:', data);
+
+      if (response.ok) {
+        const channel = data.channel;
+        setChannels(prev => prev.find(c => c.id === channel.id) ? prev : [...prev, channel]);
+        setOpen(false);
+        setNewName('');
+        router.push(`/chat/${channel.id}`);
+        setMobileMenuOpen(false);
+      } else if (response.status === 401) {
+        localStorage.removeItem('token');
+        document.cookie = 'auth-token=; path=/; max-age=0';
+        router.push('/login');
+      } else {
+        console.error('Channel creation failed:', data);
+        alert(`Failed to create channel: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error creating channel:', error);
+      alert(`Error creating channel: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally { 
+      setLoading(false); 
+    }
   }
 
   function handleSelectUser(user: { id: string; name: string; email: string; status: 'online' | 'away' | 'offline'; avatar?: string }) {
@@ -88,8 +227,15 @@ export function ChannelSidebar() {
             <Link
               key={c.id}
               href={`/chat/${c.id}`}
-              className={`block rounded px-3 py-2 text-sm truncate ${pathname === `/chat/${c.id}` ? 'bg-white/15' : 'hover:bg-white/10'}`}
-            ># {c.name}</Link>
+              className={`flex items-center justify-between rounded px-3 py-2 text-sm truncate ${pathname === `/chat/${c.id}` ? 'bg-white/15' : 'hover:bg-white/10'}`}
+            >
+              <span className={(c as any).unreadCount > 0 ? 'font-bold' : ''}># {c.name}</span>
+              {(c as any).unreadCount > 0 && (
+                <span className="bg-gray-500/50 text-white text-xs font-semibold rounded-full px-2 py-0.5 min-w-[20px] text-center">
+                  {(c as any).unreadCount}
+                </span>
+              )}
+            </Link>
           ))}
           {!channels.length && <div className="text-white/40 text-xs px-3">No channels</div>}
         </nav>
@@ -103,61 +249,61 @@ export function ChannelSidebar() {
         </div>
         <nav className="flex-1 overflow-y-auto space-y-1 px-2 mt-2">
           {directMessages.map(dm => {
-            // Mock full user data - Static code Backend team please change it to dynamic
-            const userMap: Record<string, { email: string; phone?: string; statusMessage?: string }> = {
-              '2': { email: 'alice@example.com', phone: '+1 234-567-8901', statusMessage: 'Working on the new project 🚀' },
-              '3': { email: 'bob@example.com', phone: '+1 234-567-8902', statusMessage: 'In a meeting, back soon' },
-              '4': { email: 'carol@example.com', statusMessage: 'Do not disturb' },
-              '5': { email: 'david@example.com', phone: '+1 234-567-8904' },
-            };
-            const userData = userMap[dm.userId] || { email: 'unknown@example.com' };
+            const userData = { email: dm.userId + '@example.com' };
             
             return (
-              <div
+              <Link
                 key={dm.userId}
-                className="relative"
+                href={`/chat/dm/${dm.userId}`}
+                className={`flex items-center gap-2 rounded px-2 py-2 ${pathname === `/chat/dm/${dm.userId}` ? 'bg-white/15' : 'hover:bg-white/10'}`}
               >
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setPopoverPosition({ x: e.clientX, y: e.clientY });
-                      setClickedUser({
-                        id: dm.userId,
-                        name: dm.userName,
-                        email: userData.email,
-                        phone: userData.phone,
-                        status: dm.status as 'online' | 'away' | 'busy' | 'inmeeting' | 'offline',
-                        statusMessage: userData.statusMessage
-                      });
-                    }}
-                    className="flex-shrink-0 hover:opacity-80 transition"
-                  >
-                    <Avatar name={dm.userName} size="sm" status={dm.status} />
-                  </button>
-                  <Link
-                    href={`/chat/dm/${dm.userId}`}
-                    className={`flex-1 rounded px-3 py-2 text-sm truncate ${pathname === `/chat/dm/${dm.userId}` ? 'bg-white/15' : 'hover:bg-white/10'}`}
-                  >
-                    <div className="truncate">{dm.userName}</div>
-                    {dm.lastMessage && <div className="text-xs text-white/50 truncate">{dm.lastMessage}</div>}
-                  </Link>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Opening popover for user:', dm.userName);
+                    setPopoverPosition({ x: e.clientX, y: e.clientY });
+                    setClickedUser({
+                      id: dm.userId,
+                      name: dm.userName,
+                      email: userData.email,
+                      status: dm.status as 'online' | 'away' | 'busy' | 'inmeeting' | 'offline',
+                    });
+                  }}
+                  className="flex-shrink-0 hover:opacity-80 transition"
+                >
+                  <Avatar src={dm.userAvatar} name={dm.userName} size="sm" status={dm.status} />
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`truncate ${(dm as any).unreadCount > 0 ? 'font-bold' : ''}`}>
+                      {dm.userName || dm.userId || 'Unknown User'}
+                    </span>
+                    {(dm as any).unreadCount > 0 && (
+                      <span className="bg-gray-500/50 text-white text-xs font-semibold rounded-full px-2 py-0.5 min-w-[20px] text-center flex-shrink-0">
+                        {(dm as any).unreadCount}
+                      </span>
+                    )}
+                  </div>
+                  {dm.lastMessage && <div className="text-xs text-white/50 truncate">{dm.lastMessage}</div>}
                 </div>
-              </div>
+              </Link>
             );
           })}
           {!directMessages.length && <div className="text-white/40 text-xs px-3">No direct messages</div>}
         </nav>
 
-        <div className="p-2 text-[10px] text-white/40 border-t border-white/10 mt-auto">Static code Backend team please change it to dynamic</div>
+
 
         {/* Clicked User Profile */}
         {clickedUser && (
           <>
             <div 
               className="fixed inset-0 z-[60]" 
-              onClick={() => setClickedUser(null)}
+              onClick={() => {
+                console.log('Closing popover for user:', clickedUser.name);
+                setClickedUser(null);
+              }}
             />
             <div 
               className="fixed z-[70]" 

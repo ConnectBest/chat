@@ -1,44 +1,109 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Avatar } from '@/components/ui/Avatar';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { getApiUrl } from '@/lib/apiConfig';
 
 export default function ProfilePage() {
-  const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
   const [status, setStatus] = useState('Available');
   const [avatarUrl, setAvatarUrl] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    if (session?.user) {
-      setName(session.user.name || '');
-      setAvatarUrl(session.user.image || '');
-    }
-  }, [session]);
+    const fetchUserProfile = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        
+        if (!token) {
+          router.push('/login');
+          return;
+        }
+
+        const response = await fetch(getApiUrl('auth/me'), {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setUser(data.user);
+          setName(data.user.name || '');
+          setAvatarUrl(data.user.avatar || '');
+        } else if (response.status === 401) {
+          // Token invalid
+          localStorage.removeItem('token');
+          document.cookie = 'auth-token=; path=/; max-age=0';
+          router.push('/login');
+        }
+      } catch (error) {
+        console.error('Error fetching profile:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserProfile();
+  }, [router]);
 
   async function handleSave() {
-    setLoading(true);
-    // Static code Backend team please change it to dynamic (PUT /api/users/me)
-    await new Promise(resolve => setTimeout(resolve, 500));
-    setLoading(false);
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      const response = await fetch(getApiUrl('users/me'), {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: name,
+          avatar: avatarUrl,
+          status_message: status
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data.user);
+        alert('Profile updated successfully!');
+      } else {
+        const error = await response.json();
+        alert(`Failed to update profile: ${error.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      alert('Failed to update profile');
+    } finally {
+      setSaving(false);
+    }
   }
 
-  if (sessionStatus === 'loading') {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-brand-600 to-brand-800 p-8 flex items-center justify-center">
         <div className="text-center space-y-4">
-          <p className="text-white text-xl">Loading...</p>
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-white"></div>
+          <p className="text-white text-xl">Loading profile...</p>
         </div>
       </div>
     );
   }
 
-  if (!session?.user) {
+  if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-brand-600 to-brand-800 p-8 flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -52,16 +117,30 @@ export default function ProfilePage() {
   return (
     <div className="h-screen overflow-y-auto scrollbar-thin bg-gradient-to-br from-brand-600 to-brand-800 p-8">
       <div className="max-w-2xl mx-auto space-y-6">
-        <h1 className="text-3xl font-bold text-white">Profile Settings</h1>
+        <div className="flex items-center gap-4">
+          <Link 
+            href="/chat"
+            className="flex items-center gap-2 text-white/70 hover:text-white transition-colors group"
+          >
+            <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Chat
+          </Link>
+          <h1 className="text-3xl font-bold text-white">Profile Settings</h1>
+        </div>
         
         <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20 space-y-6">
           <div className="flex items-center gap-4">
             <Avatar src={avatarUrl} name={name} size="lg" status="online" />
             <div>
-              <h2 className="text-lg font-semibold text-white">{session.user.email}</h2>
-              <p className="text-sm text-white/70">Role: {(session.user as any).role || 'user'}</p>
-              {(session.user as any).phone && (
-                <p className="text-sm text-white/70">Phone: {(session.user as any).phone}</p>
+              <h2 className="text-lg font-semibold text-white">{user.email}</h2>
+              <p className="text-sm text-white/70">Role: {user.role || 'user'}</p>
+              {user.phone && (
+                <p className="text-sm text-white/70">Phone: {user.phone}</p>
+              )}
+              {user.username && (
+                <p className="text-sm text-white/70">Username: @{user.username}</p>
               )}
             </div>
           </div>
@@ -87,9 +166,72 @@ export default function ProfilePage() {
             </div>
 
             <div>
-              <label className="block text-sm text-white mb-2">Avatar URL</label>
-              <Input value={avatarUrl} onChange={e => setAvatarUrl(e.target.value)} placeholder="https://..." />
-              <p className="text-xs text-white/50 mt-1">Static code Backend team please change it to dynamic - file upload coming</p>
+              <label className="block text-sm text-white mb-2">Profile Picture</label>
+              <div className="space-y-3">
+                <Input 
+                  type="file" 
+                  accept="image/*"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      // Validate file size (5MB max)
+                      if (file.size > 5 * 1024 * 1024) {
+                        alert('File is too large. Maximum size is 5MB.');
+                        return;
+                      }
+
+                      // Upload file to server
+                      setUploading(true);
+                      try {
+                        const token = localStorage.getItem('token');
+                        if (!token) {
+                          alert('Please login first');
+                          return;
+                        }
+
+                        const formData = new FormData();
+                        formData.append('file', file);
+
+                        const response = await fetch(getApiUrl('users/me/avatar'), {
+                          method: 'POST',
+                          headers: {
+                            'Authorization': `Bearer ${token}`
+                          },
+                          body: formData
+                        });
+
+                        if (response.ok) {
+                          const data = await response.json();
+                          setAvatarUrl(data.avatar_url);
+                          alert('Image uploaded successfully!');
+                        } else {
+                          const error = await response.json();
+                          alert(`Upload failed: ${error.error || 'Unknown error'}`);
+                        }
+                      } catch (error) {
+                        console.error('Upload error:', error);
+                        alert('Failed to upload image');
+                      } finally {
+                        setUploading(false);
+                      }
+                    }
+                  }}
+                  className="text-white/70"
+                  disabled={uploading}
+                />
+                {uploading && (
+                  <div className="flex items-center gap-2 text-sm text-white/70">
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                    Uploading...
+                  </div>
+                )}
+                <Input 
+                  value={avatarUrl} 
+                  onChange={e => setAvatarUrl(e.target.value)} 
+                  placeholder="Or enter image URL..." 
+                />
+                <p className="text-xs text-white/50">Upload from gallery (max 5MB) or paste image URL</p>
+              </div>
             </div>
 
             <div>
@@ -117,7 +259,7 @@ export default function ProfilePage() {
           </div>
 
           <div className="flex gap-3 pt-4">
-            <Button onClick={handleSave} loading={loading}>Save Changes</Button>
+            <Button onClick={handleSave} loading={saving}>Save Changes</Button>
             <Button variant="secondary" onClick={() => window.history.back()}>Cancel</Button>
           </div>
         </div>
@@ -129,7 +271,6 @@ export default function ProfilePage() {
             <Button variant="ghost" className="w-full justify-start">Enable 2FA</Button>
             <Button variant="danger" className="w-full justify-start">Delete Account</Button>
           </div>
-          <p className="text-xs text-white/50 mt-4">Static code Backend team please change it to dynamic</p>
         </div>
       </div>
     </div>

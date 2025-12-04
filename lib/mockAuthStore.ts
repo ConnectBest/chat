@@ -1,5 +1,4 @@
 // Simple in-memory mock auth store for local frontend development.
-// Static code Backend team please change it to dynamic
 export interface MockUser {
   id: string;
   email: string;

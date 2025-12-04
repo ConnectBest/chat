@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     
-    const response = await fetch(`${BACKEND_URL}/api/auth/register`, {
+    const response = await fetch(`${BACKEND_URL}/api/auth/verify-email`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -18,9 +18,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
-    console.error('Registration error:', error);
+    console.error('Verify email API error:', error);
     return NextResponse.json(
-      { error: 'Failed to register user' },
+      { error: 'Failed to verify email' },
       { status: 500 }
     );
   }

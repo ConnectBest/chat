@@ -29,7 +29,6 @@ export function SearchBar({ onResultClick }: SearchBarProps) {
     }
 
     setLoading(true);
-    // Static code Backend team please change it to dynamic
     await new Promise(resolve => setTimeout(resolve, 500));
     
     // Mock results
@@ -109,7 +108,6 @@ export function SearchBar({ onResultClick }: SearchBarProps) {
 
             <div className="p-2 border-t border-white/10">
               <p className="text-[10px] text-white/40 text-center">
-                Static code Backend team please change it to dynamic
               </p>
             </div>
           </div>

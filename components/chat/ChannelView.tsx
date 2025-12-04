@@ -15,18 +15,22 @@ import { GifPicker } from './GifPicker';
 import { Avatar } from '@/components/ui/Avatar';
 import { UserProfilePopover } from '@/components/ui/UserProfilePopover';
 import { ClipsRecorder } from './ClipsRecorder';
-import { AIAssistant } from './AIAssistant';
+import { AIChatPanel } from './AIChatPanel';
+import { getApiUrl } from '@/lib/apiConfig';
 
 interface Message { 
   id: string; 
   content: string; 
-  createdAt: string; 
-  userId: string; 
+  createdAt?: string;
+  created_at?: string; // Backend might use snake_case
+  userId?: string;
+  user_id?: string; // Backend might use snake_case
   reactions?: { emoji: string; count: number; users: string[] }[]; 
   attachments?: { name: string; size: number; type: string; url?: string }[];
   edited?: boolean;
   pinned?: boolean;
   bookmarked?: boolean;
+  bookmarked_by_users?: string[]; // Array of user IDs who bookmarked this message
   gifUrl?: string;
   linkPreview?: { url: string; title: string; description: string; image?: string };
   scheduledFor?: string;
@@ -41,11 +45,12 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
   const [showInputEmojiPicker, setShowInputEmojiPicker] = useState(false);
   const [threadMessage, setThreadMessage] = useState<Message | null>(null);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
-  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [attachedFiles, setAttachedFiles] = useState<Array<{name: string; size: number; type: string; url: string}>>([]);
   const [dmUserName, setDmUserName] = useState<string>('');
   const [channelName, setChannelName] = useState<string>(channelId);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState<string>('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showPinnedMessages, setShowPinnedMessages] = useState<boolean>(false);
   const [showMentionAutocomplete, setShowMentionAutocomplete] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
@@ -65,45 +70,228 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
     id: string;
     name: string;
     email: string;
+    avatar?: string;
     phone?: string;
     status: 'online' | 'away' | 'busy' | 'inmeeting' | 'offline';
     statusMessage?: string;
   } | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const pinnedMessages = messages.filter(m => m.pinned);
 
-  // Mock users for mentions
-  const allUsers = [
-    { id: '1', name: 'Current User', email: 'current@example.com', status: 'online' as const },
-    { id: '2', name: 'Alice Johnson', email: 'alice@example.com', status: 'online' as const },
-    { id: '3', name: 'Bob Smith', email: 'bob@example.com', status: 'away' as const },
-    { id: '4', name: 'Carol Williams', email: 'carol@example.com', status: 'online' as const },
-    { id: '5', name: 'David Brown', email: 'david@example.com', status: 'offline' as const },
-  ];
+  // TODO: Load users from backend for mentions
+  const allUsers: Array<{ id: string; name: string; email: string; status: 'online' | 'away' | 'offline' }> = [];
+  
+  // Scroll to bottom when messages change
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+  
+  // Function to notify typing status
+  const notifyTyping = async (isTyping: boolean) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      
+      await fetch(getApiUrl(`chat/channels/${channelId}/typing`), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ typing: isTyping })
+      });
+    } catch (error) {
+      // Silently fail - typing is not critical
+    }
+  };
+  
+  // Poll for typing users
+  useEffect(() => {
+    const fetchTypingUsers = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        
+        const response = await fetch(getApiUrl(`chat/channels/${channelId}/typing`), {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setTypingUsers(data.typing_users || []);
+        }
+      } catch (error) {
+        // Silently fail - typing is not critical
+      }
+    };
+    
+    // Fetch immediately
+    fetchTypingUsers();
+    
+    // Poll every 5 seconds (reduced from 2 for better performance)
+    const interval = setInterval(fetchTypingUsers, 5000);
+    
+    return () => {
+      clearInterval(interval);
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, [channelId]);
+  
   useEffect(() => {
     let mounted = true;
+    
+    // Fetch current user info
+    const fetchCurrentUser = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        
+        const data = await api.me(token);
+        if (data.user && mounted) {
+          setCurrentUserId(data.user.id);
+        }
+      } catch (error) {
+        console.error('Error fetching current user:', error);
+      }
+    };
+    
+    fetchCurrentUser();
+    
+    // Fetch channel details to get the name
+    const fetchChannelDetails = async () => {
+      if (!isDM) {
+        try {
+          const token = localStorage.getItem('token');
+          if (!token) return;
+
+          const response = await fetch(getApiUrl('chat/channels'), {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const channel = data.channels?.find((c: any) => c.id === channelId || c._id === channelId);
+            if (channel && mounted) {
+              setChannelName(channel.name);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching channel details:', error);
+        }
+      }
+    };
+
+    fetchChannelDetails();
+    
     if (isDM && dmUserId) {
-      // Mock DM user lookup - Static code Backend team please change it to dynamic
-      const userMap: Record<string, { name: string; email: string; phone?: string; status: 'online' | 'away' | 'busy' | 'inmeeting' | 'offline'; statusMessage?: string }> = {
-        '2': { name: 'Alice Johnson', email: 'alice@example.com', phone: '+1 234-567-8901', status: 'online', statusMessage: 'Working on the new project 🚀' },
-        '3': { name: 'Bob Smith', email: 'bob@example.com', phone: '+1 234-567-8902', status: 'away', statusMessage: 'In a meeting, back soon' },
-        '4': { name: 'Carol Williams', email: 'carol@example.com', status: 'busy', statusMessage: 'Do not disturb' },
-        '5': { name: 'David Brown', email: 'david@example.com', phone: '+1 234-567-8904', status: 'offline' },
+      // Fetch DM user data from backend
+      const fetchDmUser = async () => {
+        try {
+          const token = localStorage.getItem('token');
+          if (!token) return;
+
+          const response = await fetch(getApiUrl('users'), {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const user = data.users?.find((u: any) => u.id === dmUserId);
+            if (user && mounted) {
+              setDmUserName(user.name);
+              setDmUserData({
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                avatar: user.avatar,
+                status: user.status || 'offline',
+                phone: user.phone,
+                statusMessage: user.statusMessage
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching DM user:', error);
+        }
       };
-      const userData = userMap[dmUserId] || { name: 'Unknown User', email: 'unknown@example.com', status: 'offline' as const };
-      setDmUserName(userData.name);
-      setDmUserData({ id: dmUserId, ...userData });
-      // Load DM messages - Static code Backend team please change it to dynamic
-      setMessages([
-        { id: '1', content: 'Hey! How are you?', createdAt: new Date(Date.now() - 3600000).toISOString(), userId: dmUserId },
-        { id: '2', content: 'I am good, thanks! How about you?', createdAt: new Date(Date.now() - 1800000).toISOString(), userId: '1' },
-      ]);
+      
+      fetchDmUser();
+      
+      // Load DM messages from backend
+      const fetchDmMessages = async () => {
+        try {
+          const token = localStorage.getItem('token');
+          if (!token) return;
+          
+          const data = await api.listDMMessages(dmUserId, token);
+          if (mounted) {
+            // Reverse messages so oldest is at top, newest at bottom
+            setMessages((data.messages || []).reverse());
+            
+            // Mark DM as read after a short delay to ensure messages are loaded
+            if (data.dm_channel_id) {
+              setTimeout(async () => {
+                try {
+                  await fetch(getApiUrl(`dm/channels/${data.dm_channel_id}/read`), {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`
+                    }
+                  });
+                  console.log('✅ Marked DM as read:', data.dm_channel_id);
+                  window.dispatchEvent(new Event('refreshSidebar'));
+                } catch (error) {
+                  console.error('Failed to mark DM as read:', error);
+                }
+              }, 500);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching DM messages:', error);
+          setMessages([]);
+        }
+      };
+      
+      fetchDmMessages();
     } else {
-      api.listMessages(channelId).then(data => mounted && setMessages(data.messages));
+      const token = localStorage.getItem('token');
+      if (token) {
+        api.listMessages(channelId, token).then(data => {
+          if (mounted) {
+            // Reverse messages so oldest is at top, newest at bottom
+            setMessages((data.messages || []).reverse());
+            
+            // Mark channel as read after a short delay to ensure messages are loaded
+            setTimeout(() => {
+              fetch(getApiUrl(`chat/channels/${channelId}/read`), {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                }
+              }).then(() => {
+                console.log('✅ Marked channel as read:', channelId);
+                // Immediately refresh sidebar to clear notification
+                window.dispatchEvent(new Event('refreshSidebar'));
+              }).catch(error => {
+                console.error('Failed to mark channel as read:', error);
+              });
+            }, 500);
+          }
+        });
+      }
     }
     
-    // Static code Backend team please change it to dynamic
     // TODO: Socket.io listener for typing events
     // socket.on('user-typing', ({ userId, channelId: typingChannelId }) => {
     //   if (typingChannelId === channelId) {
@@ -111,71 +299,177 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
     //   }
     // });
     
-    return () => { mounted = false; };
-  }, [channelId]);
+    // Poll for new/updated messages every 20 seconds for better performance
+    const pollInterval = setInterval(async () => {
+      if (!mounted) return;
+      
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        
+        if (isDM && dmUserId) {
+          const data = await api.listDMMessages(dmUserId, token);
+          if (mounted && data.messages) {
+            setMessages(data.messages.reverse());
+            
+            // Mark DM as read after fetching new messages
+            if (data.dm_channel_id) {
+              try {
+                await fetch(getApiUrl(`dm/channels/${data.dm_channel_id}/read`), {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                  }
+                });
+                console.log('✅ Marked DM as read during polling:', data.dm_channel_id);
+                window.dispatchEvent(new Event('refreshSidebar'));
+              } catch (error) {
+                console.error('Failed to mark DM as read during polling:', error);
+              }
+            }
+          }
+        } else {
+          const data = await api.listMessages(channelId, token);
+          if (mounted && data.messages) {
+            setMessages(data.messages.reverse());
+            
+            // Mark channel as read after fetching new messages
+            try {
+              await fetch(getApiUrl(`chat/channels/${channelId}/read`), {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                }
+              });
+              console.log('✅ Marked channel as read during polling:', channelId);
+              window.dispatchEvent(new Event('refreshSidebar'));
+            } catch (error) {
+              console.error('Failed to mark channel as read during polling:', error);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error polling messages:', error);
+      }
+    }, 20000); // Poll every 20 seconds for better performance
+    
+    return () => { 
+      mounted = false; 
+      clearInterval(pollInterval);
+    };
+  }, [channelId, isDM, dmUserId]);
 
   async function send() {
     if (!content.trim() && attachedFiles.length === 0) return;
     setLoading(true);
+    
+    // Stop typing indicator
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    notifyTyping(false);
+    
     try {
-      // Static code Backend team please change it to dynamic
-      const attachments = attachedFiles.map(f => ({
-        name: f.name,
-        size: f.size,
-        type: f.type
-      }));
-      
-      // Extract link preview
-      const linkPreview = await extractLinkPreview(content);
-      
-      const { message } = await api.sendMessage(channelId, content.trim() || '📎 File attachment');
-      setMessages(prev => [...prev, { ...message, reactions: [], attachments, linkPreview: linkPreview || undefined }]);
-      setContent('');
-      setAttachedFiles([]);
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('Please log in to send messages');
+        return;
+      }
+
+      // For DM, send via DM API
+      if (isDM && dmUserId) {
+        const { message } = await api.sendDMMessage(dmUserId, content.trim() || '📎 File attachment', token, attachedFiles.length > 0 ? attachedFiles : undefined);
+        setMessages(prev => [...prev, { ...message, reactions: [] }]);
+        setContent('');
+        setAttachedFiles([]);
+      } else {
+        // Extract link preview
+        const linkPreview = await extractLinkPreview(content);
+        
+        const { message } = await api.sendMessage(channelId, content.trim() || '📎 File attachment', token, attachedFiles.length > 0 ? attachedFiles : undefined);
+        setMessages(prev => [...prev, { ...message, reactions: [], linkPreview: linkPreview || undefined }]);
+        setContent('');
+        setAttachedFiles([]);
+      }
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      alert('Failed to send message. Please try again.');
     } finally { setLoading(false); }
   }
 
-  function handleReaction(messageId: string, emoji: string) {
-    // Static code Backend team please change it to dynamic
-    const currentUserId = '1'; // Mock current user ID
+  async function handleReaction(messageId: string, emoji: string) {
+    if (!currentUserId) return; // Need current user ID
     setShowEmojiPicker(null); // Close picker after selection
-    setMessages(prev => prev.map(m => {
-      if (m.id !== messageId) return m;
-      
-      let reactions = [...(m.reactions || [])]; // Create new array
-      
-      // First, remove user's existing reaction from any emoji
-      reactions = reactions.map(r => ({
-        ...r,
-        users: r.users.filter(u => u !== currentUserId),
-        count: r.users.filter(u => u !== currentUserId).length
-      })).filter(r => r.count > 0); // Remove reactions with 0 count
-      
-      // Then add the new reaction
-      const existingIndex = reactions.findIndex(r => r.emoji === emoji);
-      if (existingIndex >= 0) {
-        // Add user to existing emoji reaction
-        reactions[existingIndex] = {
-          ...reactions[existingIndex],
-          count: reactions[existingIndex].count + 1,
-          users: [...reactions[existingIndex].users, currentUserId]
-        };
-      } else {
-        // Create new reaction
-        reactions.push({ emoji, count: 1, users: [currentUserId] });
+    
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('Please log in to add reactions');
+        return;
       }
       
-      return { ...m, reactions };
-    }));
+      // Call backend API to add reaction
+      const data = await api.addReaction(channelId, messageId, emoji, token);
+      
+      // Update local state with backend response
+      if (data.reactions) {
+        setMessages(prev => prev.map(m => {
+          if (m.id !== messageId) return m;
+          return { ...m, reactions: data.reactions };
+        }));
+      }
+    } catch (error) {
+      console.error('Error adding reaction:', error);
+      alert('Failed to add reaction. Please try again.');
+    }
   }
 
   async function handleFileUpload(files: File[]) {
-    // Static code Backend team please change it to dynamic
-    setAttachedFiles(prev => [...prev, ...files]);
+    // Upload files to backend and store URLs
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('Please log in to upload files');
+        return;
+      }
+
+      for (const file of files) {
+        const uploadResult = await api.uploadFile(file, token);
+        // Add the uploaded file info to attachedFiles with the backend URL
+        setAttachedFiles(prev => [...prev, {
+          name: uploadResult.original_name,
+          size: uploadResult.size,
+          type: uploadResult.type,
+          url: uploadResult.file_url
+        }]);
+      }
+    } catch (error) {
+      console.error('Error uploading files:', error);
+      alert('Failed to upload files. Please try again.');
+    }
   }
 
   function handleInputChange(value: string) {
     setContent(value);
+    
+    // Notify typing
+    if (value.length > 0) {
+      notifyTyping(true);
+      
+      // Clear existing timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      
+      // Set timeout to stop typing after 3 seconds of inactivity
+      typingTimeoutRef.current = setTimeout(() => {
+        notifyTyping(false);
+      }, 3000);
+    } else {
+      notifyTyping(false);
+    }
     
     // Check for @ mentions
     const lastAtSymbol = value.lastIndexOf('@');
@@ -203,7 +497,6 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
       setShowMentionAutocomplete(false);
     }
     
-    // Static code Backend team please change it to dynamic
     // TODO: Emit typing event via socket
     // socket.emit('typing', { channelId, userId: currentUser.id });
   }
@@ -235,7 +528,6 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
     const urls = text.match(urlRegex);
     if (!urls || urls.length === 0) return null;
     
-    // Static code Backend team please change it to dynamic - Fetch actual link previews
     // Mock preview for now
     return {
       url: urls[0],
@@ -257,32 +549,119 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
 
   async function saveEdit(messageId: string) {
     if (!editContent.trim()) return;
-    // Static code Backend team please change it to dynamic - PUT /api/messages/:id
-    setMessages(prev => prev.map(m => 
-      m.id === messageId ? { ...m, content: editContent.trim(), edited: true } : m
-    ));
-    setEditingMessageId(null);
-    setEditContent('');
+    
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('Please log in to edit messages');
+        return;
+      }
+
+      // Call backend API to update message
+      const response = await fetch(getApiUrl(`chat/messages/${messageId}`), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ content: editContent.trim() })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to edit message');
+      }
+
+      const { message: updatedMessage } = await response.json();
+      
+      // Update local state
+      setMessages(prev => prev.map(m => 
+        m.id === messageId ? { ...m, content: editContent.trim(), edited: true } : m
+      ));
+      
+      setEditingMessageId(null);
+      setEditContent('');
+    } catch (error) {
+      console.error('Failed to edit message:', error);
+      alert('Failed to edit message. Please try again.');
+    }
   }
 
   async function deleteMessage(messageId: string) {
     if (!confirm('Delete this message? This cannot be undone.')) return;
-    // Static code Backend team please change it to dynamic - DELETE /api/messages/:id
-    setMessages(prev => prev.filter(m => m.id !== messageId));
+    
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('Please log in to delete messages');
+        return;
+      }
+
+      // Call backend API to delete message
+      const response = await fetch(getApiUrl(`chat/messages/${messageId}`), {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete message');
+      }
+
+      // Update local state
+      setMessages(prev => prev.filter(m => m.id !== messageId));
+    } catch (error) {
+      console.error('Failed to delete message:', error);
+    }
   }
 
   function togglePinMessage(messageId: string) {
-    // Static code Backend team please change it to dynamic - POST /api/messages/:id/pin
     setMessages(prev => prev.map(m => 
       m.id === messageId ? { ...m, pinned: !m.pinned } : m
     ));
   }
 
-  function toggleBookmarkMessage(messageId: string) {
-    // Static code Backend team please change it to dynamic - POST /api/messages/:id/bookmark
-    setMessages(prev => prev.map(m => 
-      m.id === messageId ? { ...m, bookmarked: !m.bookmarked } : m
-    ));
+  async function toggleBookmarkMessage(messageId: string) {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        alert('Please log in to bookmark messages');
+        return;
+      }
+
+      // Call backend API to toggle bookmark
+      const response = await fetch(getApiUrl(`chat/messages/${messageId}/bookmark`), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to toggle bookmark');
+      }
+
+      const { bookmarked } = await response.json();
+      
+      // Update local state - add or remove current user from bookmarked_by_users array
+      setMessages(prev => prev.map(m => {
+        if (m.id !== messageId) return m;
+        
+        const bookmarked_by_users = m.bookmarked_by_users || [];
+        const updatedBookmarkedBy = bookmarked 
+          ? [...bookmarked_by_users, String(currentUserId)]
+          : bookmarked_by_users.filter(uid => uid !== String(currentUserId));
+        
+        return { 
+          ...m, 
+          bookmarked,
+          bookmarked_by_users: updatedBookmarkedBy
+        };
+      }));
+    } catch (error) {
+      console.error('Failed to toggle bookmark:', error);
+      alert('Failed to bookmark message. Please try again.');
+    }
   }
 
   function formatMessage(text: string) {
@@ -311,7 +690,6 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
   function startRecording() {
     setIsRecording(true);
     setRecordingTime(0);
-    // Static code Backend team please change it to dynamic - Start actual audio recording
     const interval = setInterval(() => {
       setRecordingTime(prev => prev + 1);
     }, 1000);
@@ -322,7 +700,6 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
   function stopRecording() {
     setIsRecording(false);
     clearInterval((window as any).recordingInterval);
-    // Static code Backend team please change it to dynamic - Stop recording and send
     const audioMessage: Message = {
       id: Date.now().toString(),
       content: `🎤 Voice message (${recordingTime}s)`,
@@ -392,7 +769,6 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
       return;
     }
 
-    // Static code Backend team please change it to dynamic - POST /api/messages/schedule
     const scheduledMessage: Message = {
       id: Date.now().toString(),
       content,
@@ -450,7 +826,6 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
       userId: '1'
     };
     setMessages(prev => [...prev, clipMessage]);
-    // Static code Backend team please change it to dynamic - Upload clip and POST /api/messages
   }
 
   function handleAIInsert(text: string) {
@@ -472,6 +847,7 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
             >
               {dmUserData && (
                 <Avatar 
+                  src={dmUserData.avatar}
                   name={dmUserData.name} 
                   status={dmUserData.status} 
                   size="md" 
@@ -490,7 +866,6 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
           onUpdateChannel={(name, members) => {
             setChannelName(name);
             console.log('Channel updated:', name, members);
-            // Static code Backend team please change it to dynamic - PUT /api/channels/:id
           }}
         />
       )}
@@ -514,22 +889,50 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
           </div>
           {showPinnedMessages && (
             <div className="mt-2 space-y-2 max-h-40 overflow-y-auto scrollbar-thin">
-              {pinnedMessages.map(m => (
-                <div key={`pinned-${m.id}`} className="text-xs bg-white/5 rounded p-2">
-                  <div className="text-white/50">{new Date(m.createdAt).toLocaleTimeString()} • user {m.userId}</div>
-                  <div className="text-white" dangerouslySetInnerHTML={{ __html: formatMessage(m.content) }} />
-                </div>
-              ))}
+              {pinnedMessages.map(m => {
+                const pinnedDate = new Date((m.createdAt || m.created_at || ''));
+                const pinnedTime = isNaN(pinnedDate.getTime()) ? 'Recent' : pinnedDate.toLocaleTimeString();
+                const pinnedUserId = m.userId || m.user_id || 'unknown';
+                
+                return (
+                  <div key={`pinned-${m.id}`} className="text-xs bg-white/5 rounded p-2">
+                    <div className="text-white/50">{pinnedTime} • user {pinnedUserId}</div>
+                    <div className="text-white" dangerouslySetInnerHTML={{ __html: formatMessage(m.content) }} />
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
       )}
       
-      <div className="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-thin min-h-0" style={{ background: 'linear-gradient(to bottom, #3d4b6d, #2f3a52)' }} role="log" aria-live="polite">
+      <div className="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-thin min-h-0" style={{ background: 'linear-gradient(to bottom, #3d4b6d, #2f3a52)' }} role="log" aria-live="polite" id="messages-container">
         {messages.map((m, index) => {
-          const messageUser = m.userId === dmUserId && dmUserData ? dmUserData : null;
-          const isCurrentUser = m.userId === '1';
-          const showDateSeparator = shouldShowDateSeparator(m, messages[index - 1]);
+          // Normalize message properties (backend uses snake_case, frontend uses camelCase)
+          const messageUserId = m.userId || m.user_id || '';
+          const messageCreatedAt = m.createdAt || m.created_at || new Date().toISOString();
+          
+          // Determine message user - check backend user object first, then DM user data
+          const messageUser = (m as any).user || (messageUserId === dmUserId && dmUserData ? dmUserData : null);
+          const isCurrentUser = currentUserId && messageUserId ? String(messageUserId) === String(currentUserId) : false;
+          const showDateSeparator = index > 0 ? shouldShowDateSeparator(m, messages[index - 1]) : false;
+          
+          // Check if current user bookmarked this message
+          const isBookmarkedByCurrentUser = m.bookmarked_by_users && currentUserId 
+            ? m.bookmarked_by_users.includes(String(currentUserId)) 
+            : false;
+          
+          // Debug logging (only for first message)
+          if (index === 0) {
+            console.log('Message Debug:', {
+              messageUserId,
+              currentUserId,
+              isCurrentUser,
+              messageCreatedAt,
+              hasUser: !!(m as any).user,
+              messageUserName: messageUser?.name
+            });
+          }
           
           return (
             <React.Fragment key={`msg-${m.id}-${index}`}>
@@ -537,13 +940,13 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
               {showDateSeparator && (
                 <div className="flex justify-center my-4">
                   <div className="bg-dark-700/80 text-white/70 text-xs px-3 py-1 rounded-full">
-                    {getDateSeparator(m.createdAt)}
+                    {getDateSeparator(messageCreatedAt)}
                   </div>
                 </div>
               )}
 
               {/* Message */}
-              <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} group`}>
+              <div className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} group relative`}>
                 {/* Avatar for received messages */}
                 {!isCurrentUser && messageUser && (
                   <button
@@ -554,6 +957,7 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
                     className="flex-shrink-0 hover:opacity-80 transition mr-2 self-end"
                   >
                     <Avatar 
+                      src={messageUser.avatar}
                       name={messageUser.name} 
                       status={messageUser.status} 
                       size="sm" 
@@ -561,7 +965,7 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
                   </button>
                 )}
 
-                <div className={`max-w-[65%] ${isCurrentUser ? 'bg-brand-600/90' : 'bg-white/10'} rounded-lg px-3 py-2 shadow-lg relative group`}>
+                <div className={`max-w-[65%] ${isCurrentUser ? 'bg-blue-600 text-white' : 'bg-white/10 text-white'} rounded-lg px-3 py-2 shadow-lg relative`}>
                   {/* Message header with username for received messages */}
                   {!isCurrentUser && messageUser && (
                     <div className="flex items-center gap-2 mb-1">
@@ -576,43 +980,6 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
                       </button>
                     </div>
                   )}
-
-                  {/* Action buttons */}
-                  <div className={`absolute top-2 opacity-0 group-hover:opacity-100 flex gap-1 ${isCurrentUser ? 'left-[-160px]' : 'right-[-160px]'}`}>
-                    <button 
-                      onClick={() => setThreadMessage(m)}
-                      className="text-white/50 hover:text-white text-xs px-2 py-1 rounded hover:bg-white/10 transition"
-                      title="Reply in thread"
-                    >
-                      💬
-                    </button>
-                    <button 
-                      onClick={() => toggleBookmarkMessage(m.id)}
-                      className={`text-xs px-2 py-1 rounded hover:bg-white/10 transition ${m.bookmarked ? 'text-yellow-400' : 'text-white/50 hover:text-yellow-400'}`}
-                      title={m.bookmarked ? "Remove bookmark" : "Bookmark message"}
-                    >
-                      ⭐
-                    </button>
-                    {m.pinned && <span className="text-brand-400 text-xs px-2 py-1">📌</span>}
-                    {isCurrentUser && (
-                      <>
-                        <button 
-                          onClick={() => startEditMessage(m)}
-                          className="text-white/50 hover:text-white text-xs px-2 py-1 rounded hover:bg-white/10 transition"
-                          title="Edit message"
-                        >
-                          ✏️
-                        </button>
-                        <button 
-                          onClick={() => deleteMessage(m.id)}
-                          className="text-white/50 hover:text-red-400 text-xs px-2 py-1 rounded hover:bg-white/10 transition"
-                          title="Delete message"
-                        >
-                          🗑️
-                        </button>
-                      </>
-                    )}
-                  </div>
 
                   {/* Message content */}
                   {editingMessageId === m.id ? (
@@ -631,6 +998,20 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
                   ) : (
                     <>
                       <div className="text-white text-sm" dangerouslySetInnerHTML={{ __html: formatMessage(m.content) }} />
+                      
+                      {/* Show star icon at bottom if message is bookmarked by current user */}
+                      {isBookmarkedByCurrentUser && (
+                        <div className="flex items-center gap-1 mt-1 pt-1 border-t border-white/10">
+                          <button
+                            onClick={() => toggleBookmarkMessage(m.id)}
+                            className="hover:opacity-80 transition"
+                            title="Remove bookmark"
+                          >
+                            <span className="text-yellow-400 text-sm">⭐</span>
+                          </button>
+                        </div>
+                      )}
+                      
                       {m.gifUrl && (
                         <div className="mt-2">
                           <img src={m.gifUrl} alt="GIF" className="rounded max-w-full max-h-48 object-cover" />
@@ -649,19 +1030,51 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
                       )}
                       {m.attachments && m.attachments.length > 0 && (
                         <div className="mt-2 space-y-1">
-                          {m.attachments.map((file, idx) => (
-                            <div key={`attachment-${m.id}-${idx}`} className="flex items-center gap-2 bg-white/10 rounded px-2 py-1 text-xs">
-                              <span className="text-lg">
-                                {file.type.startsWith('image/') ? '🖼️' : 
-                                 file.type.includes('pdf') ? '📄' : 
-                                 file.type.includes('zip') ? '📦' : '📎'}
-                              </span>
-                              <div className="flex-1 min-w-0">
-                                <div className="text-white font-medium truncate">{file.name}</div>
-                                <div className="text-white/50 text-xs">{(file.size / 1024).toFixed(1)} KB</div>
+                          {m.attachments.map((file, idx) => {
+                            const isImage = file.type.startsWith('image/');
+                            return (
+                              <div key={`attachment-${m.id}-${idx}`} className="bg-white/10 rounded overflow-hidden">
+                                {isImage && file.url ? (
+                                  <a href={file.url} target="_blank" rel="noopener noreferrer" className="block">
+                                    <img 
+                                      src={file.url} 
+                                      alt={file.name}
+                                      className="max-w-full max-h-64 object-contain cursor-pointer hover:opacity-90 transition"
+                                      onError={(e) => {
+                                        // Fallback if image fails to load
+                                        (e.target as HTMLImageElement).style.display = 'none';
+                                      }}
+                                    />
+                                  </a>
+                                ) : null}
+                                <div className="flex items-center gap-2 px-2 py-1 text-xs">
+                                  <span className="text-lg">
+                                    {file.type.startsWith('image/') ? '🖼️' : 
+                                     file.type.includes('pdf') ? '📄' : 
+                                     file.type.includes('zip') ? '📦' :
+                                     file.type.includes('video') ? '🎥' :
+                                     file.type.includes('audio') ? '🎵' : '📎'}
+                                  </span>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-white font-medium truncate">{file.name}</div>
+                                    <div className="text-white/50 text-xs">{(file.size / 1024).toFixed(1)} KB</div>
+                                  </div>
+                                  {file.url && (
+                                    <a 
+                                      href={file.url} 
+                                      download={file.name}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-brand-400 hover:text-brand-300 text-xs px-2 py-1 rounded hover:bg-white/10 transition"
+                                      title="Download file"
+                                    >
+                                      ⬇️
+                                    </a>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </>
@@ -670,10 +1083,14 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
                   {/* Timestamp and status */}
                   <div className="flex items-center justify-end gap-1 mt-1">
                     <span className="text-white/50 text-[10px]">
-                      {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {(() => {
+                        const date = new Date(messageCreatedAt);
+                        if (isNaN(date.getTime())) return 'Just now';
+                        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                      })()}
                     </span>
                     {m.edited && <span className="text-white/40 text-[10px]">(edited)</span>}
-                    {isCurrentUser && <span className="text-blue-400 text-xs">✓✓</span>}
+                    {isCurrentUser && <span className="text-white/70 text-xs">✓✓</span>}
                   </div>
 
                   {/* Reactions */}
@@ -685,11 +1102,55 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
                     />
                   )}
                 </div>
+
+                {/* Action buttons - outside message bubble */}
+                <div className={`flex items-center gap-1 ${isCurrentUser ? 'order-first mr-2' : 'ml-2'} opacity-0 group-hover:opacity-100 transition-opacity`}>
+                  <button 
+                    onClick={() => setShowEmojiPicker(m.id)}
+                    className="text-white/40 hover:text-white text-sm p-1 rounded hover:bg-white/10 transition"
+                    title="Add reaction"
+                  >
+                    😊
+                  </button>
+                  <button 
+                    onClick={() => setThreadMessage(m)}
+                    className="text-white/40 hover:text-white text-sm p-1 rounded hover:bg-white/10 transition"
+                    title="Reply in thread"
+                  >
+                    💬
+                  </button>
+                  <button 
+                    onClick={() => toggleBookmarkMessage(m.id)}
+                    className={`text-sm p-1 rounded hover:bg-white/10 transition ${isBookmarkedByCurrentUser ? 'text-yellow-400' : 'text-white/40 hover:text-yellow-400'}`}
+                    title={isBookmarkedByCurrentUser ? "Remove bookmark" : "Bookmark message"}
+                  >
+                    ⭐
+                  </button>
+                  {isCurrentUser && (
+                    <>
+                      <button 
+                        onClick={() => startEditMessage(m)}
+                        className="text-white/40 hover:text-white text-sm p-1 rounded hover:bg-white/10 transition"
+                        title="Edit message"
+                      >
+                        ✏️
+                      </button>
+                      <button 
+                        onClick={() => deleteMessage(m.id)}
+                        className="text-white/40 hover:text-red-400 text-sm p-1 rounded hover:bg-white/10 transition"
+                        title="Delete message"
+                      >
+                        🗑️
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </React.Fragment>
           );
         })}
         {!messages.length && <div className="text-white/40 text-sm">No messages yet.</div>}
+        <div ref={messagesEndRef} />
       </div>
       
       <TypingIndicator users={typingUsers} />
@@ -764,7 +1225,7 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
                 ref={inputRef}
                 value={content} 
                 onChange={e => handleInputChange(e.target.value)} 
-                placeholder={`Message #${channelId}`} 
+                placeholder="Message" 
                 aria-label="Message input"
                 className="pr-12 animate-pulse-cursor"
               />
@@ -1032,13 +1493,12 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
         />
       )}
 
-      {/* AI Assistant */}
-      {showAI && (
-        <AIAssistant
-          onClose={() => setShowAI(false)}
-          onInsert={handleAIInsert}
-        />
-      )}
+      {/* AI Chat Panel */}
+      <AIChatPanel
+        isOpen={showAI}
+        onClose={() => setShowAI(false)}
+        onInsert={handleAIInsert}
+      />
     </div>
   );
 }

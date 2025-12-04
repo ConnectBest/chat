@@ -30,7 +30,6 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
       setGifs(TRENDING_GIFS);
       return;
     }
-    // Static code Backend team please change it to dynamic - Integrate with Giphy API
     // For now, filter trending GIFs
     const filtered = TRENDING_GIFS.filter(gif => 
       gif.title.toLowerCase().includes(query.toLowerCase())
@@ -92,7 +91,6 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
 
         <div className="p-3 border-t border-white/10 bg-white/5">
           <p className="text-xs text-white/40 text-center">
-            Powered by GIPHY • Static code Backend team please change it to dynamic
           </p>
         </div>
       </div>
