@@ -41,3 +41,4 @@ Thumbs.db
 # Process IDs
 *.pid
 backend.pid
+production_schema_export.json
