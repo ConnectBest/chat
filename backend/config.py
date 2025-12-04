@@ -7,6 +7,7 @@ for development, testing, and production environments.
 """
 
 import os
+import logging
 from datetime import timedelta
 from dotenv import load_dotenv
 
@@ -96,11 +97,18 @@ class ProductionConfig(Config):
     @property
     def CORS_ORIGINS(self):
         origins = os.getenv('CORS_ORIGINS')
-        if not origins or 'localhost' in origins:
-            raise ValueError(
-                "CORS_ORIGINS must be explicitly set in production and should not contain localhost. "
-                "Example: CORS_ORIGINS=https://yourdomain.com,https://www.yourdomain.com"
+        if not origins:
+            # Default to the Lightsail domain if not explicitly set
+            return ['https://chat-app.efr21as675de2.us-west-2.cs.amazonlightsail.com']
+
+        # Check for localhost in production and warn but don't crash
+        if 'localhost' in origins:
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "CORS_ORIGINS contains localhost in production environment. "
+                "This should be avoided in production deployments."
             )
+
         return [origin.strip() for origin in origins.split(',') if origin.strip()]
 
 

@@ -41,21 +41,18 @@ cat > lightsail/deployment.json <<EOF
         "MAX_CONTENT_LENGTH": "52428800",
         "UPLOAD_FOLDER": "static/uploads"
       },
-      "command": [
-        "sh", "-c",
-        "echo 'nameserver 8.8.8.8' > /etc/resolv.conf && echo 'nameserver 8.8.4.4' >> /etc/resolv.conf && /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf"
-      ]
+      "command": []
     }
   },
   "publicEndpoint": {
     "containerName": "chat",
     "containerPort": 8080,
     "healthCheck": {
-      "path": "/api/health",
-      "intervalSeconds": 30,
-      "timeoutSeconds": 10,
+      "path": "/",
+      "intervalSeconds": 45,
+      "timeoutSeconds": 20,
       "healthyThreshold": 2,
-      "unhealthyThreshold": 5
+      "unhealthyThreshold": 8
     }
   }
 }

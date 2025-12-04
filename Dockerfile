@@ -109,8 +109,22 @@ ENV HOSTNAME=0.0.0.0
 ENV PYTHONUNBUFFERED=1
 ENV NODE_ENV=production
 
-# Switch to non-root user
-USER appuser
+# Create a startup script that handles DNS and user switching
+RUN cat > /startup.sh << 'EOF'
+#!/bin/bash
+echo "Starting container..."
 
-# Start supervisord (manages both Next.js and Flask)
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+# Handle DNS configuration with error handling
+echo "Configuring DNS..."
+echo 'nameserver 8.8.8.8' > /etc/resolv.conf 2>/dev/null || echo "DNS configuration failed, using default"
+echo 'nameserver 8.8.4.4' >> /etc/resolv.conf 2>/dev/null || echo "DNS append failed, using default"
+
+# Start supervisord as appuser
+echo "Starting supervisord as appuser..."
+exec su appuser -c "/usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf"
+EOF
+
+RUN chmod +x /startup.sh
+
+# Start with the startup script (keeps root for DNS, then switches to appuser)
+CMD ["/startup.sh"]
