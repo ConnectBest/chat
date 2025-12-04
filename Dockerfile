@@ -114,10 +114,24 @@ RUN cat > /startup.sh << 'EOF'
 #!/bin/bash
 echo "Starting container..."
 
-# Handle DNS configuration with error handling
-echo "Configuring DNS..."
-echo 'nameserver 8.8.8.8' > /etc/resolv.conf 2>/dev/null || echo "DNS configuration failed, using default"
-echo 'nameserver 8.8.4.4' >> /etc/resolv.conf 2>/dev/null || echo "DNS append failed, using default"
+# Handle DNS configuration with better error handling and fallbacks
+echo "Configuring DNS for better connectivity..."
+{
+    # Try to configure custom DNS servers
+    echo 'nameserver 8.8.8.8' > /etc/resolv.conf
+    echo 'nameserver 8.8.4.4' >> /etc/resolv.conf
+    echo 'nameserver 1.1.1.1' >> /etc/resolv.conf
+    echo "✅ DNS configured successfully"
+} || {
+    echo "⚠️ DNS configuration failed, using system default"
+}
+
+# Test DNS resolution for MongoDB Atlas connectivity
+echo "Testing DNS resolution..."
+{
+    nslookup connectbest.fyufpj1.mongodb.net || echo "⚠️ MongoDB hostname resolution test failed"
+    nslookup google.com || echo "⚠️ General DNS resolution test failed"
+} || echo "⚠️ DNS tests failed, but continuing startup"
 
 # Start supervisord as appuser
 echo "Starting supervisord as appuser..."

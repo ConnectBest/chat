@@ -120,38 +120,55 @@ def create_app():
 
         logger.info(f"MongoDB URI type: {'Atlas (mongodb+srv)' if 'mongodb+srv://' in mongodb_uri else 'Standard'}")
 
+        # Initialize MongoDB client without immediate connection test
+        # This prevents app startup failures due to temporary connectivity issues
         app.mongo_client = MongoClient(
             mongodb_uri,
             **connection_options
         )
 
-        # Test connection with retry
-        max_retries = 5
+        # Test connection with retry, but don't fail app startup if it fails
+        max_retries = 3
+        connection_successful = False
         for attempt in range(max_retries):
             try:
                 logger.info(f"Testing MongoDB connection (attempt {attempt + 1}/{max_retries})")
                 server_info = app.mongo_client.server_info()
                 logger.info(f"MongoDB server version: {server_info.get('version', 'unknown')}")
+                connection_successful = True
                 break
             except Exception as e:
+                logger.warning(f"MongoDB connection attempt {attempt + 1} failed: {str(e)}")
                 if attempt == max_retries - 1:
                     logger.error(f"Failed to connect to MongoDB after {max_retries} attempts: {str(e)}")
-                    raise
-                logger.warning(f"MongoDB connection attempt {attempt + 1} failed: {str(e)}, retrying in 2 seconds...")
-                import time
-                time.sleep(2)
+                    logger.error("MongoDB URI configured: " + str(bool(app.config.get('MONGODB_URI'))))
+                    logger.error("URI type: " + ('MongoDB Atlas (mongodb+srv)' if 'mongodb+srv://' in mongodb_uri else 'Standard'))
+                    # Don't raise - let the app start and retry connections later
+                else:
+                    import time
+                    time.sleep(1)
 
-        app.db = app.mongo_client[app.config['MONGODB_DB_NAME']]
+        if connection_successful:
+            app.db = app.mongo_client[app.config['MONGODB_DB_NAME']]
 
-        # Test database access
-        collections = app.db.list_collection_names()
-        logger.info(f"✅ Connected to MongoDB database '{app.config['MONGODB_DB_NAME']}' with {len(collections)} collections")
+            # Test database access
+            try:
+                collections = app.db.list_collection_names()
+                logger.info(f"✅ Connected to MongoDB database '{app.config['MONGODB_DB_NAME']}' with {len(collections)} collections")
 
-        # Log some collection names for verification
-        if collections:
-            logger.info(f"Available collections: {', '.join(collections[:5])}{'...' if len(collections) > 5 else ''}")
+                # Log some collection names for verification
+                if collections:
+                    logger.info(f"Available collections: {', '.join(collections[:5])}")
+                    if len(collections) > 5:
+                        logger.info(f"... and {len(collections) - 5} more")
+                else:
+                    logger.warning("No collections found in database")
+            except Exception as e:
+                logger.error(f"Failed to access database collections: {str(e)}")
         else:
-            logger.warning("No collections found in database (this is normal for a new database)")
+            logger.warning("⚠️ Starting Flask app without MongoDB connection. Database operations will fail until connection is established.")
+            # Set a dummy database reference to prevent attribute errors
+            app.db = None
 
     except Exception as e:
         logger.error(f"❌ Failed to connect to MongoDB: {str(e)}")

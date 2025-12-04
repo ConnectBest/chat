@@ -48,9 +48,9 @@ cat > lightsail/deployment.json <<EOF
     "containerName": "chat",
     "containerPort": 8080,
     "healthCheck": {
-      "path": "/",
-      "intervalSeconds": 45,
-      "timeoutSeconds": 20,
+      "path": "/api/health",
+      "intervalSeconds": 60,
+      "timeoutSeconds": 30,
       "healthyThreshold": 2,
       "unhealthyThreshold": 8
     }
