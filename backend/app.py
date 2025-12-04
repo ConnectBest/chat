@@ -85,19 +85,21 @@ def create_app():
         logger.info(f"Initializing MongoDB connection...")
         logger.info(f"MONGODB_URI configured: {bool(app.config.get('MONGODB_URI'))}")
 
-        # Build connection options based on URI - optimized for production containers
+        # Build connection options based on URI - optimized for production containers with DNS issues
         connection_options = {
-            'serverSelectionTimeoutMS': 10000,  # Reduced timeout for faster failure detection
-            'connectTimeoutMS': 10000,  # Connection timeout
-            'socketTimeoutMS': 10000,  # Socket timeout
-            'maxPoolSize': 5,  # Small pool size for container environments
+            'serverSelectionTimeoutMS': 15000,  # Longer timeout for DNS resolution issues
+            'connectTimeoutMS': 15000,  # Connection timeout
+            'socketTimeoutMS': 15000,  # Socket timeout
+            'maxPoolSize': 3,  # Very small pool size for container environments
             'minPoolSize': 1,  # Keep at least one connection
-            'maxIdleTimeMS': 10000,  # Close idle connections quickly
+            'maxIdleTimeMS': 30000,  # Keep connections longer to avoid reconnection issues
             'retryWrites': True,  # Enable retry writes
             'w': 'majority',  # Write concern
-            'heartbeatFrequencyMS': 30000,  # Heartbeat frequency
+            'heartbeatFrequencyMS': 60000,  # Less frequent heartbeats
             'directConnection': False,  # Allow connection to replica sets
-            'waitQueueTimeoutMS': 5000,  # Timeout for getting a connection from the pool
+            'waitQueueTimeoutMS': 10000,  # Longer timeout for getting a connection from the pool
+            'maxConnecting': 2,  # Limit concurrent connection attempts
+            'compressors': [],  # Disable compression to reduce overhead
         }
 
         mongodb_uri = app.config.get('MONGODB_URI')

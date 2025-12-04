@@ -40,7 +40,11 @@ cat > lightsail/deployment.json <<EOF
         "NEXT_PUBLIC_WEBSOCKET_URL": "${NEXT_PUBLIC_WEBSOCKET_URL:-}",
         "MAX_CONTENT_LENGTH": "52428800",
         "UPLOAD_FOLDER": "static/uploads"
-      }
+      },
+      "command": [
+        "sh", "-c",
+        "echo 'nameserver 8.8.8.8' > /etc/resolv.conf && echo 'nameserver 8.8.4.4' >> /etc/resolv.conf && /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf"
+      ]
     }
   },
   "publicEndpoint": {
