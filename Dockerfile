@@ -16,9 +16,6 @@ ARG NEXT_PUBLIC_WEBSOCKET_URL
 ARG NEXT_PUBLIC_API_URL=http://localhost:5001/api
 ARG NEXT_PUBLIC_WS_URL=http://localhost:5001
 
-# Copy package files
-COPY package*.json ./
-
 # Copy package files first for better layer caching
 COPY package*.json ./
 
