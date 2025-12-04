@@ -1,7 +1,0 @@
-2025-11-29 02:15:24,468 - __main__ - INFO - ✅ Connected to MongoDB: chatapp
-2025-11-29 02:15:24,561 - __main__ - INFO - 🚀 Starting server on http://0.0.0.0:5001
-2025-11-29 02:15:24,561 - __main__ - INFO - 📚 Swagger UI available at http://0.0.0.0:5001/docs
- * Serving Flask app 'app'
- * Debug mode: on
-Address already in use
-Port 5001 is in use by another program. Either identify and stop that program, or start the server with a different port.

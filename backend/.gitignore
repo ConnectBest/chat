@@ -38,7 +38,9 @@ static/uploads/*
 .DS_Store
 Thumbs.db
 
-# Process IDs
+# Process IDs and runtime logs
 *.pid
 backend.pid
+nohup.out
+*.log
 production_schema_export.json
