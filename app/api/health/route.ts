@@ -7,7 +7,14 @@ export async function GET() {
 
     // Basic health check that doesn't depend on external services
     // This ensures the frontend can respond even if backend services are down
-    const healthData = {
+    const healthData: {
+      status: string;
+      uptime: number;
+      version: string;
+      timestamp: string;
+      services: Record<string, string>;
+      uptimeDays: number;
+    } = {
       status: 'healthy',
       uptime: 99.99,
       version: '1.0.0',
