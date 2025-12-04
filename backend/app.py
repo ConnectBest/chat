@@ -82,17 +82,43 @@ def create_app():
     # Initialize MongoDB connection
     # Use connection pooling - don't close connection after each request
     try:
+        # Build connection options based on URI
+        connection_options = {
+            'serverSelectionTimeoutMS': 15000,  # Increased timeout for initial connection
+            'connectTimeoutMS': 15000,  # Connection timeout
+            'socketTimeoutMS': 15000,  # Socket timeout
+            'maxPoolSize': 20,  # Reduced pool size for container environments
+            'minPoolSize': 5,  # Minimum number of connections in the pool
+            'maxIdleTimeMS': 30000,  # Close connections after 30 seconds of inactivity
+            'retryWrites': True,  # Enable retry writes
+            'w': 'majority'  # Write concern
+        }
+
+        # Add TLS/SSL configuration for Atlas connections
+        if 'mongodb+srv://' in app.config['MONGODB_URI'] or 'ssl=true' in app.config['MONGODB_URI']:
+            connection_options.update({
+                'tls': True,
+                'tlsCAFile': certifi.where(),
+                'tlsAllowInvalidCertificates': False,
+                'tlsAllowInvalidHostnames': False
+            })
+
         app.mongo_client = MongoClient(
             app.config['MONGODB_URI'],
-            serverSelectionTimeoutMS=5000,  # 5 second timeout
-            maxPoolSize=50,  # Maximum number of connections in the pool
-            minPoolSize=10,  # Minimum number of connections in the pool
-            maxIdleTimeMS=45000,  # Close connections after 45 seconds of inactivity
-            tls=True,  # Enable TLS/SSL
-            tlsCAFile=certifi.where()  # Use certifi's CA bundle for certificate validation
+            **connection_options
         )
-        # Test connection
-        app.mongo_client.server_info()
+
+        # Test connection with retry
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                app.mongo_client.server_info()
+                break
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise
+                logger.warning(f"MongoDB connection attempt {attempt + 1} failed: {str(e)}, retrying...")
+
         app.db = app.mongo_client[app.config['MONGODB_DB_NAME']]
         logger.info(f"✅ Connected to MongoDB: {app.config['MONGODB_DB_NAME']}")
     except Exception as e:

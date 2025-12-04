@@ -10,11 +10,11 @@ FROM node:20-slim AS frontend-builder
 
 WORKDIR /app
 
-# Build args
+# Build args - For production, these should point to the external domain
 ARG CACHEBUST=1
 ARG NEXT_PUBLIC_WEBSOCKET_URL
-ARG NEXT_PUBLIC_API_URL=http://localhost:5001/api
-ARG NEXT_PUBLIC_WS_URL=http://localhost:5001
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_WS_URL
 
 # Copy package files first for better layer caching
 COPY package*.json ./
@@ -34,9 +34,11 @@ COPY postcss.config.js ./
 COPY middleware.ts ./
 
 # Build Next.js with env vars
-ENV NEXT_PUBLIC_WEBSOCKET_URL=$NEXT_PUBLIC_WEBSOCKET_URL
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
+# In production, API URLs should point to the public domain (passed as build args)
+# In development, they default to localhost
+ENV NEXT_PUBLIC_WEBSOCKET_URL=${NEXT_PUBLIC_WEBSOCKET_URL:-}
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:5001/api}
+ENV NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL:-http://localhost:5001}
 RUN npm run build
 
 # -----------------------------------------------------------------------------

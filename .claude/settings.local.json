@@ -28,7 +28,8 @@
       "Bash(gh secret list:*)",
       "Bash(node -e:*)",
       "Bash(git rm:*)",
-      "Bash(git ls-tree:*)"
+      "Bash(git ls-tree:*)",
+      "Bash(aws lightsail get-container-services:*)"
     ],
     "deny": [],
     "ask": []
