@@ -115,8 +115,27 @@ class Register(Resource):
         except ValueError as e:
             return {'error': str(e)}, 409
         except Exception as e:
-            current_app.logger.error(f"Registration error: {str(e)}")
-            return {'error': 'Failed to register user'}, 500
+            import traceback
+            error_details = {
+                'error': str(e),
+                'type': type(e).__name__,
+                'traceback': traceback.format_exc()
+            }
+            current_app.logger.error(f"Registration error for {email}: {error_details}")
+
+            # Provide more specific error messages for common issues
+            if 'pymongo' in str(e).lower() or 'mongo' in str(e).lower():
+                current_app.logger.error(f"Database connection error during registration: {str(e)}")
+                return {'error': 'Database connection failed. Please try again later.'}, 503
+            elif 'duplicate' in str(e).lower() or 'email' in str(e).lower() and 'exists' in str(e).lower():
+                current_app.logger.error(f"User already exists error during registration: {str(e)}")
+                return {'error': 'User with this email already exists.'}, 409
+            elif 'validation' in str(e).lower():
+                current_app.logger.error(f"Validation error during registration: {str(e)}")
+                return {'error': f'Validation failed: {str(e)}'}, 400
+            else:
+                current_app.logger.error(f"Unexpected registration error: {str(e)}")
+                return {'error': 'An unexpected error occurred during registration.'}, 500
 
 
 @auth_ns.route('/login')
