@@ -39,7 +39,6 @@ export function HuddlePanel({ channelId, channelName, onClose }: HuddlePanelProp
   function startHuddle() {
     setIsActive(true);
     setDuration(0);
-    // Static code Backend team please change it to dynamic - POST /api/huddles/start
     // Simulate joining
     setTimeout(() => {
       setParticipants([
@@ -55,7 +54,6 @@ export function HuddlePanel({ channelId, channelName, onClose }: HuddlePanelProp
       setParticipants([]);
       setDuration(0);
       onClose();
-      // Static code Backend team please change it to dynamic - POST /api/huddles/leave
     }
   }
 
@@ -65,7 +63,6 @@ export function HuddlePanel({ channelId, channelName, onClose }: HuddlePanelProp
     setParticipants(prev => 
       prev.map(p => p.id === '1' ? { ...p, isMuted: !isMuted } : p)
     );
-    // Static code Backend team please change it to dynamic - POST /api/huddles/mute
   }
 
   // Toggle deafen (mute + stop hearing others)
@@ -78,7 +75,6 @@ export function HuddlePanel({ channelId, channelName, onClose }: HuddlePanelProp
         prev.map(p => p.id === '1' ? { ...p, isMuted: true } : p)
       );
     }
-    // Static code Backend team please change it to dynamic - POST /api/huddles/deafen
   }
 
   // Format duration

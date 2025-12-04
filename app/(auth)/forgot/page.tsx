@@ -13,7 +13,6 @@ export default function ForgotPasswordPage() {
   const { register, handleSubmit, formState: { errors, isSubmitSuccessful } } = useForm<{ email: string }>({ resolver: zodResolver(schema) });
 
   async function onSubmit(values: { email: string }) {
-    // Static code Backend team please change it to dynamic (POST /api/auth/forgot)
     console.log('Request password reset for', values.email);
   }
 
@@ -37,7 +36,6 @@ export default function ForgotPasswordPage() {
           <Link href="/login" className="underline">Sign in</Link>
           <Link href="/register" className="underline">Create account</Link>
         </div>
-        <p className="text-xs text-white/50">Federated SSO & 2FA coming (Static code Backend team please change it to dynamic)</p>
       </div>
     </div>
   );

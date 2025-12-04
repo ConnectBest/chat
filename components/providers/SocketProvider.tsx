@@ -21,8 +21,10 @@ interface SocketContextValue {
 
 const SocketContext = createContext<SocketContextValue | undefined>(undefined);
 
+const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5001';
+
 export function SocketProvider({ children }: { children: React.ReactNode }) {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [connected, setConnected] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const messageCallbacksRef = useRef<Set<(data: WebSocketMessage) => void>>(new Set());

@@ -34,7 +34,6 @@ export default function OpsPage() {
   }, [autoRefresh]);
 
   async function fetchData() {
-    // Static code Backend team please change it to dynamic
     // Mock health data
     setHealth({
       status: 'healthy',
@@ -259,7 +258,6 @@ export default function OpsPage() {
         </div>
 
         <p className="text-white/40 text-xs text-center">
-          Static code Backend team please change it to dynamic
         </p>
       </div>
     </div>

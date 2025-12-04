@@ -1,0 +1,40 @@
+# Flask Backend Requirements for Chat Application
+
+# Core Flask Framework
+Flask==3.0.0
+Flask-RESTX==1.3.0  # For Swagger/OpenAPI documentation
+Flask-CORS==4.0.0   # Cross-Origin Resource Sharing
+Flask-SocketIO==5.3.5  # WebSocket support
+python-socketio==5.10.0  # Socket.IO server
+eventlet==0.35.1    # Async networking library for WebSocket
+
+# Database
+pymongo==4.6.1      # MongoDB driver
+mongoengine==0.28.2 # MongoDB ODM (Object Document Mapper)
+
+# Authentication & Security
+PyJWT==2.8.0        # JSON Web Tokens
+bcrypt==4.1.2       # Password hashing
+python-dotenv==1.0.0 # Environment variables
+pyotp==2.9.0        # TOTP (Time-based One-Time Password) for 2FA
+qrcode==7.4.2       # QR code generation for 2FA setup
+Pillow==10.1.0      # Image processing (required by qrcode)
+
+# Validation
+marshmallow==3.20.1 # Schema validation
+email-validator==2.1.0
+
+# Date & Time
+python-dateutil==2.8.2
+
+# HTTP & Utilities
+requests==2.31.0
+Werkzeug==3.0.1
+
+# Testing
+pytest==7.4.3
+pytest-flask==1.3.0
+pytest-cov==4.1.0
+
+# Development
+gunicorn==21.2.0    # Production WSGI server

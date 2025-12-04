@@ -1,51 +1,115 @@
-# Build stage
-FROM node:20-slim AS builder
+# =============================================================================
+# Multi-Stage Dockerfile: Next.js Frontend + Flask Backend
+# Runs both services in a single container using supervisord
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Build Next.js Frontend
+# -----------------------------------------------------------------------------
+FROM node:20-slim AS frontend-builder
 
 WORKDIR /app
 
 # Build args
 ARG CACHEBUST=1
 ARG NEXT_PUBLIC_WEBSOCKET_URL
+ARG NEXT_PUBLIC_API_URL=http://localhost:5001/api
+ARG NEXT_PUBLIC_WS_URL=http://localhost:5001
 
 # Copy package files
 COPY package*.json ./
 
-# Install all dependencies (including devDependencies for build)
-# npm install respects --registry flag better than npm ci
+# Install dependencies
 RUN npm install --registry=https://registry.npmjs.org/ --no-audit
 
-# Copy source files
-COPY . .
+# Copy frontend source files (exclude backend)
+COPY app ./app
+COPY components ./components
+COPY lib ./lib
+COPY public ./public
+COPY *.config.js ./
+COPY *.ts ./
+COPY tsconfig.json ./
+COPY tailwind.config.js ./
+COPY postcss.config.js ./
+COPY middleware.ts ./
 
-# Build Next.js app with NEXT_PUBLIC_* env vars
+# Build Next.js with env vars
 ENV NEXT_PUBLIC_WEBSOCKET_URL=$NEXT_PUBLIC_WEBSOCKET_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
 RUN npm run build
 
-# Production stage
-FROM node:20-slim AS runner
+# -----------------------------------------------------------------------------
+# Stage 2: Production - Combined Frontend + Backend
+# -----------------------------------------------------------------------------
+FROM python:3.12-slim AS production
 
 WORKDIR /app
 
-# Install OpenSSL for MongoDB SSL connections
+# Install Node.js in the Python image
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends openssl ca-certificates && \
+    apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    openssl \
+    supervisor && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
 
-# Security hardening: non-root user
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs
+# Create non-root user for security
+RUN addgroup --system --gid 1001 appuser && \
+    adduser --system --uid 1001 --gid 1001 appuser
 
-# Copy necessary files from builder
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --chown=nextjs:nodejs start.sh ./
-RUN chmod +x start.sh
+# -----------------------------------------------------------------------------
+# Install Backend Dependencies
+# -----------------------------------------------------------------------------
+WORKDIR /app/backend
 
-USER nextjs
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
-EXPOSE 8080
+# Copy backend code
+COPY --chown=appuser:appuser backend/ ./
 
+# Create necessary directories for backend
+RUN mkdir -p static/uploads && \
+    chown -R appuser:appuser static/uploads
+
+# -----------------------------------------------------------------------------
+# Install Frontend
+# -----------------------------------------------------------------------------
+WORKDIR /app/frontend
+
+# Copy built Next.js from builder
+COPY --from=frontend-builder --chown=appuser:appuser /app/.next/standalone ./
+COPY --from=frontend-builder --chown=appuser:appuser /app/.next/static ./.next/static
+COPY --from=frontend-builder --chown=appuser:appuser /app/public ./public
+
+# -----------------------------------------------------------------------------
+# Configure Supervisord
+# -----------------------------------------------------------------------------
+WORKDIR /app
+
+# Copy supervisor config
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Create log directories
+RUN mkdir -p /var/log/supervisor && \
+    chown -R appuser:appuser /var/log/supervisor
+
+# Expose ports
+EXPOSE 8080 5001
+
+# Environment variables
 ENV PORT=8080
 ENV HOSTNAME=0.0.0.0
+ENV PYTHONUNBUFFERED=1
+ENV NODE_ENV=production
 
-CMD ["./start.sh"]
+# Switch to non-root user
+USER appuser
+
+# Start supervisord (manages both Next.js and Flask)
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

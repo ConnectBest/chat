@@ -33,6 +33,9 @@ const statusLabels = {
 };
 
 export function UserProfilePopover({ user, onClose }: UserProfilePopoverProps) {
+  // Fallback for null names
+  const displayName = user.name || user.email?.split('@')[0] || 'User';
+  
   return (
     <>
       {/* Popover Card */}
@@ -44,12 +47,12 @@ export function UserProfilePopover({ user, onClose }: UserProfilePopoverProps) {
         <div className="px-6 pb-6 -mt-12">
           {/* Avatar */}
           <div className="relative inline-block">
-            <Avatar name={user.name} status={user.status} size="xl" />
+            <Avatar name={displayName} status={user.status} size="xl" />
           </div>
           
           {/* User Info */}
           <div className="mt-3">
-            <h3 className="text-xl font-semibold text-white">{user.name}</h3>
+            <h3 className="text-xl font-semibold text-white">{displayName}</h3>
             <div className="flex items-center gap-2 mt-1">
               <div className={`w-2 h-2 rounded-full ${statusColors[user.status]}`} />
               <span className="text-sm text-white/70">{statusLabels[user.status]}</span>

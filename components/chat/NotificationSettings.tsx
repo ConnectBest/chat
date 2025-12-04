@@ -18,7 +18,6 @@ export function NotificationSettings({ channelId, channelName, onClose }: Notifi
   const [muteUntil, setMuteUntil] = useState<string>('');
 
   function saveSettings() {
-    // Static code Backend team please change it to dynamic - PUT /api/channels/:id/notifications
     console.log('Saving notification settings:', { channelId, level, isMuted, muteUntil });
     // Store in localStorage for now
     localStorage.setItem(`notifications_${channelId}`, JSON.stringify({ level, isMuted, muteUntil }));

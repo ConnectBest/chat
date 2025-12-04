@@ -1,8 +1,64 @@
-import React from 'react';
+"use client";
+import React, { useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import { ChannelSidebar } from '@/components/chat/ChannelSidebar';
 import { ProfileMenu } from '@/components/ui/ProfileMenu';
+import { getApiUrl } from '@/lib/apiConfig';
 
 export default function ChatLayout({ children }: { children: React.ReactNode }) {
+  const { data: session } = useSession();
+  
+  useEffect(() => {
+    // Set user status to online when chat loads
+    const setOnlineStatus = async () => {
+      try {
+        // Get token from NextAuth session
+        const token = (session?.user as any)?.accessToken;
+        if (!token) return;
+
+        await fetch(getApiUrl('users/me'), {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ status: 'online' })
+        });
+      } catch (error) {
+        console.error('Failed to set online status:', error);
+      }
+    };
+
+    if (session?.user) {
+      setOnlineStatus();
+
+      // Send heartbeat every 30 seconds to keep user online
+      const heartbeatInterval = setInterval(setOnlineStatus, 30000);
+
+      // Set user to offline when leaving
+      const handleBeforeUnload = async () => {
+        try {
+          const token = (session?.user as any)?.accessToken;
+          if (!token) return;
+
+          navigator.sendBeacon(
+            getApiUrl('users/me'),
+            new Blob([JSON.stringify({ status: 'offline' })], { type: 'application/json' })
+          );
+        } catch (error) {
+          console.error('Failed to set offline status:', error);
+        }
+      };
+
+      window.addEventListener('beforeunload', handleBeforeUnload);
+
+      return () => {
+        clearInterval(heartbeatInterval);
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+      };
+    }
+  }, [session]);
+
   return (
     <div className="h-screen overflow-hidden grid grid-cols-1 md:grid-cols-[260px_1fr] bg-brand-900 text-white">
       <ChannelSidebar />

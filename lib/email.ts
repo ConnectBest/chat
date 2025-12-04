@@ -3,7 +3,6 @@ import nodemailer from 'nodemailer';
 // Force Node.js runtime for nodemailer (not Edge Runtime compatible)
 export const runtime = 'nodejs';
 
-// Email transporter configuration - Static code Backend team please change it to dynamic
 // In production, use real SMTP credentials from environment variables
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST || 'smtp.gmail.com',

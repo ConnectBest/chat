@@ -20,7 +20,6 @@ export function FileUploader({ onUpload, maxSize = 10, accept }: FileUploaderPro
   const [isOpen, setIsOpen] = useState(false);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    // Static code Backend team please change it to dynamic
     const newUploads: UploadProgress[] = acceptedFiles.map(file => ({
       file,
       progress: 0,
@@ -29,19 +28,26 @@ export function FileUploader({ onUpload, maxSize = 10, accept }: FileUploaderPro
     
     setUploads(prev => [...prev, ...newUploads]);
 
-    // Simulate upload progress
-    for (const upload of newUploads) {
-      for (let i = 0; i <= 100; i += 20) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-        setUploads(prev => prev.map(u => 
-          u.file === upload.file 
-            ? { ...u, progress: i, status: i === 100 ? 'complete' : 'uploading' }
-            : u
-        ));
-      }
+    // Actually upload files (removed fake simulation)
+    try {
+      await onUpload(acceptedFiles);
+      
+      // Mark all as complete
+      setUploads(prev => prev.map(u => 
+        newUploads.some(nu => nu.file === u.file)
+          ? { ...u, progress: 100, status: 'complete' }
+          : u
+      ));
+    } catch (error) {
+      console.error('Upload failed:', error);
+      // Mark as error
+      setUploads(prev => prev.map(u => 
+        newUploads.some(nu => nu.file === u.file)
+          ? { ...u, status: 'error' }
+          : u
+      ));
+      return; // Don't close modal on error
     }
-
-    await onUpload(acceptedFiles);
     
     // Close the modal after all uploads complete
     setTimeout(() => {
@@ -122,7 +128,6 @@ export function FileUploader({ onUpload, maxSize = 10, accept }: FileUploaderPro
           )}
 
           <p className="text-[10px] text-white/40 mt-3 text-center">
-            Static code Backend team please change it to dynamic
           </p>
         </div>
       )}

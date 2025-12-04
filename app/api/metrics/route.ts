@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 
-// Static code Backend team please change it to dynamic
 export async function GET() {
   const metrics = {
     activeConnections: Math.floor(Math.random() * 100) + 50,

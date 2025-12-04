@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import Link from 'next/link';
+import { getApiUrl } from '@/lib/apiConfig';
 
 const schema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -37,10 +38,33 @@ function LoginForm() {
   }, [searchParams, setValue]);
 
   async function onSubmit(values: { email: string; password: string; verificationCode?: string }) {
+    console.log('🔐 Starting login process...');
     setLoading(true);
     setError('');
 
     try {
+<<<<<<< HEAD
+      console.log('📡 Sending login request to backend...');
+      // Login directly to backend
+      const response = await fetch(getApiUrl('auth/login'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email: values.email, 
+          password: values.password 
+        }),
+      });
+
+      console.log('📥 Response status:', response.status);
+      const data = await response.json();
+      console.log('📦 Response data:', data);
+
+      if (!response.ok) {
+        console.error('❌ Login failed:', data.error);
+        setError(data.error || 'Invalid credentials');
+        setLoading(false);
+        return;
+=======
       console.log('🔐 Attempting login...', { email: values.email });
       const result = await signIn('credentials', {
         email: values.email,
@@ -64,11 +88,37 @@ function LoginForm() {
         const callbackUrl = searchParams.get('callbackUrl') || '/chat';
         router.push(callbackUrl);
         router.refresh();
+>>>>>>> 399e8d1b7b8b74bbff8cb0637d760c3feae65df8
       }
+
+      console.log('✅ Backend authentication successful!');
+      
+      // Store token and user data
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      console.log('💾 Token and user stored in localStorage');
+      
+      // Set cookie for middleware
+      document.cookie = `auth-token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}`; // 7 days
+      console.log('🍪 Cookie set for middleware');
+
+      console.log('👤 User role:', data.user.role);
+
+      // Redirect based on role
+      const callbackUrl = searchParams.get('callbackUrl');
+      const redirectUrl = data.user.role === 'admin' && !callbackUrl 
+        ? '/admin' 
+        : callbackUrl || '/chat/general';
+      
+      console.log('🚀 Redirecting to:', redirectUrl);
+      window.location.href = redirectUrl;
     } catch (err) {
+<<<<<<< HEAD
+      console.error('💥 Login exception:', err);
+=======
       console.error('❌ Login exception:', err);
+>>>>>>> 399e8d1b7b8b74bbff8cb0637d760c3feae65df8
       setError('An unexpected error occurred');
-    } finally {
       setLoading(false);
     }
   }
@@ -76,9 +126,23 @@ function LoginForm() {
   async function handleGoogleSignIn() {
     setLoading(true);
     try {
+<<<<<<< HEAD
+      // Get OAuth URL from backend
+      const response = await fetch(getApiUrl('auth/google'));
+      const data = await response.json();
+      
+      if (data.auth_url) {
+        // Redirect to Google OAuth
+        window.location.href = data.auth_url;
+      } else {
+        setError('Failed to get Google sign-in URL');
+        setLoading(false);
+      }
+=======
       await signIn('google', { 
         callbackUrl: searchParams.get('callbackUrl') || '/chat' 
       });
+>>>>>>> 399e8d1b7b8b74bbff8cb0637d760c3feae65df8
     } catch (err) {
       setError('Google sign-in failed');
       setLoading(false);

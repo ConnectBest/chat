@@ -24,7 +24,6 @@ export function AIAssistant({ onClose, onInsert }: AIAssistantProps) {
     setIsProcessing(true);
 
     try {
-      // Static code Backend team please change it to dynamic - Send prompt to AI team's API
       // const result = await fetch('/api/ai/process', {
       //   method: 'POST',
       //   headers: { 'Content-Type': 'application/json' },

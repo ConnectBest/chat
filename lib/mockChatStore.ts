@@ -1,5 +1,4 @@
 // In-memory chat data store for mock API.
-// Static code Backend team please change it to dynamic
 export interface Channel { id: string; name: string; createdAt: string; }
 export interface Message { id: string; channelId: string; content: string; userId: string; createdAt: string; }
 

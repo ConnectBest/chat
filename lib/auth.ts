@@ -2,8 +2,9 @@ import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
-import bcrypt from "bcryptjs";
-import { sendVerificationEmail } from "@/lib/email";
+
+// Backend API URL - Flask backend
+const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api';
 
 // Extended user type with role and phone
 export interface ExtendedUser {
@@ -15,52 +16,6 @@ export interface ExtendedUser {
   emailVerified: Date | null;
   image?: string;
 }
-
-// In-memory store for development - Static code Backend team please change it to dynamic
-// In production, this will be replaced with actual database
-const users: Map<string, {
-  id: string;
-  email: string;
-  password?: string;
-  name: string;
-  role: 'admin' | 'user';
-  phone?: string;
-  emailVerified: Date | null;
-  verificationToken?: string;
-  verificationExpires?: Date;
-  image?: string;
-}> = new Map();
-
-// Pre-populate with demo admin user
-users.set('demo@test.com', {
-  id: '1',
-  email: 'demo@test.com',
-  password: bcrypt.hashSync('demo123', 10),
-  name: 'Demo Admin',
-  role: 'admin',
-  phone: '+1234567890',
-  emailVerified: new Date(),
-  image: undefined
-});
-
-// Pre-populate test users
-users.set('alice@test.com', {
-  id: '2',
-  email: 'alice@test.com',
-  password: bcrypt.hashSync('alice123', 10),
-  name: 'Alice Johnson',
-  role: 'user',
-  emailVerified: new Date(),
-});
-
-users.set('bob@test.com', {
-  id: '3',
-  email: 'bob@test.com',
-  password: bcrypt.hashSync('bob123', 10),
-  name: 'Bob Smith',
-  role: 'user',
-  emailVerified: new Date(),
-});
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true, // Required for deployment behind proxies/load balancers
@@ -81,98 +36,83 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       name: "Email & Password",
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-        verificationCode: { label: "Verification Code", type: "text" }
+        password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
         const parsedCredentials = z
           .object({ 
             email: z.string().email(), 
-            password: z.string().min(6),
-            verificationCode: z.string().optional()
+            password: z.string().min(6)
           })
           .safeParse(credentials);
 
         if (!parsedCredentials.success) return null;
 
-        const { email, password, verificationCode } = parsedCredentials.data;
-        const user = users.get(email);
+        const { email, password } = parsedCredentials.data;
 
-        if (!user || !user.password) return null;
+        try {
+          // Call Flask backend directly
+          const response = await fetch(`${BACKEND_API_URL}/auth/login`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email, password }),
+          });
 
-        const passwordsMatch = await bcrypt.compare(password, user.password);
-        if (!passwordsMatch) return null;
+          const data = await response.json();
 
-        // Check if email verification is required
-        if (!user.emailVerified) {
-          // Verify the code if provided
-          if (verificationCode && user.verificationToken) {
-            if (user.verificationToken === verificationCode && 
-                user.verificationExpires && 
-                user.verificationExpires > new Date()) {
-              // Mark as verified
-              user.emailVerified = new Date();
-              user.verificationToken = undefined;
-              user.verificationExpires = undefined;
-              users.set(email, user);
-            } else {
-              throw new Error("Invalid or expired verification code");
-            }
-          } else {
-            // Generate and send verification code
-            const token = Math.random().toString(36).substring(2, 8).toUpperCase();
-            user.verificationToken = token;
-            user.verificationExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-            users.set(email, user);
-            
-            await sendVerificationEmail(email, token, user.name);
-            throw new Error("VERIFICATION_REQUIRED");
+          if (!response.ok) {
+            console.error('Login failed:', data);
+            return null;
           }
+          
+          // Return user data from Flask backend
+          return {
+            id: data.user.id,
+            email: data.user.email,
+            name: data.user.full_name || data.user.username || data.user.email,
+            role: data.user.role,
+            phone: data.user.phone,
+            image: data.user.avatar,
+            accessToken: data.token // Store JWT token
+          } as any;
+        } catch (error) {
+          console.error('Login error:', error);
+          return null;
         }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          phone: user.phone,
-          image: user.image
-        } as any;
       },
     }),
   ],
   callbacks: {
     async signIn({ user, account, profile }) {
-      // For Google OAuth, create user if doesn't exist
+      // For Google OAuth, you could register with Flask backend here
       if (account?.provider === "google" && user.email) {
-        let existingUser = users.get(user.email);
-        
-        if (!existingUser) {
-          const newId = (users.size + 1).toString();
-          existingUser = {
-            id: newId,
-            email: user.email,
-            name: user.name || 'Unknown',
-            role: 'user', // Default role for new Google users
-            emailVerified: new Date(), // Google emails are pre-verified
-            image: user.image || undefined,
-          };
-          users.set(user.email, existingUser);
-        } else if (existingUser) {
-          // Update image if Google login
-          existingUser.image = user.image || undefined;
-          existingUser.emailVerified = new Date();
-          users.set(user.email, existingUser);
+        // Optional: Register Google users with Flask backend
+        try {
+          await fetch(`${BACKEND_API_URL}/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: user.email,
+              name: user.name,
+              password: Math.random().toString(36), // Random password for OAuth users
+              role: 'user'
+            }),
+          });
+        } catch (error) {
+          // User might already exist, that's ok
+          console.log('Google user registration skipped');
         }
       }
       return true;
     },
     async jwt({ token, user, account }) {
       if (user) {
-        const dbUser = users.get(user.email!);
-        token.id = user.id || dbUser?.id;
-        token.role = (user as any).role || dbUser?.role || 'user';
-        token.phone = (user as any).phone || dbUser?.phone;
+        token.id = user.id;
+        token.role = (user as any).role || 'user';
+        token.phone = (user as any).phone;
+        token.accessToken = (user as any).accessToken; // Store Flask JWT token
       }
       return token;
     },
@@ -181,6 +121,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         (session.user as any).id = token.id;
         (session.user as any).role = token.role;
         (session.user as any).phone = token.phone;
+        (session.user as any).accessToken = token.accessToken; // Pass JWT to client
       }
       return session;
     },
@@ -195,6 +136,3 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   secret: process.env.NEXTAUTH_SECRET || "development-secret-change-in-production",
 });
-
-// Export user store for registration
-export { users };

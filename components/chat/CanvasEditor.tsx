@@ -28,7 +28,6 @@ export function CanvasEditor({ channelId, onClose }: CanvasEditorProps) {
 
   // Load documents for channel
   useEffect(() => {
-    // Static code Backend team please change it to dynamic - GET /api/canvas/:channelId
     const mockDocs: CanvasDocument[] = [
       {
         id: '1',
@@ -66,7 +65,6 @@ export function CanvasEditor({ channelId, onClose }: CanvasEditorProps) {
     setIsEditing(true);
     setShowNewDocForm(false);
     setNewDocTitle('');
-    // Static code Backend team please change it to dynamic - POST /api/canvas
   }
 
   function openDocument(doc: CanvasDocument) {
@@ -89,7 +87,6 @@ export function CanvasEditor({ channelId, onClose }: CanvasEditorProps) {
     setDocuments(prev => prev.map(d => d.id === selectedDoc.id ? updatedDoc : d));
     setSelectedDoc(updatedDoc);
     setIsEditing(false);
-    // Static code Backend team please change it to dynamic - PUT /api/canvas/:id
   }
 
   function deleteDocument() {
@@ -99,7 +96,6 @@ export function CanvasEditor({ channelId, onClose }: CanvasEditorProps) {
     setSelectedDoc(null);
     setTitle('');
     setContent('');
-    // Static code Backend team please change it to dynamic - DELETE /api/canvas/:id
   }
 
   function insertFormatting(type: 'heading' | 'bold' | 'italic' | 'code' | 'list' | 'checkbox') {

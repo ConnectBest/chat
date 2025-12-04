@@ -14,7 +14,6 @@ const schema = z.object({
   confirmPassword: z.string(),
   name: z.string().min(2, 'Name must be at least 2 characters'),
   phone: z.string().optional(),
-  role: z.enum(['admin', 'user']),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -28,14 +27,9 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   
-  const { register, handleSubmit, formState: { errors }, watch } = useForm<FormData>({ 
-    resolver: zodResolver(schema),
-    defaultValues: {
-      role: 'user'
-    }
+  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({ 
+    resolver: zodResolver(schema)
   });
-
-  const selectedRole = watch('role');
 
   async function onSubmit(values: FormData) {
     setLoading(true);
@@ -51,7 +45,7 @@ export default function RegisterPage() {
           password: values.password,
           name: values.name,
           phone: values.phone || undefined,
-          role: values.role,
+          role: 'user',
         }),
       });
 
@@ -61,12 +55,12 @@ export default function RegisterPage() {
         throw new Error(data.error || 'Registration failed');
       }
 
-      setSuccess('✅ Registration successful! Check your email for verification code.');
+      setSuccess('✅ Registration successful! Please check your email to verify your account.');
       
-      // Redirect to login after 3 seconds
+      // Redirect to login after 5 seconds (give user time to read message)
       setTimeout(() => {
-        router.push(`/login?email=${encodeURIComponent(values.email)}`);
-      }, 3000);
+        router.push(`/login?email=${encodeURIComponent(values.email)}&verified=pending`);
+      }, 5000);
 
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');
@@ -76,8 +70,8 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-brand-900 via-brand-800 to-brand-900">
-      <div className="w-full max-w-md space-y-6 rounded-xl bg-brand-800/70 backdrop-blur-lg p-8 border border-white/20 shadow-2xl">
+    <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-brand-900 via-brand-800 to-brand-900 overflow-y-auto">
+      <div className="w-full max-w-md space-y-6 rounded-xl bg-brand-800/70 backdrop-blur-lg p-8 border border-white/20 shadow-2xl my-6">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-white mb-2">Create Account</h1>
           <p className="text-white/70 text-sm">Join ConnectBest Chat</p>
@@ -153,58 +147,8 @@ export default function RegisterPage() {
             {errors.confirmPassword && <p className="text-xs text-red-300 mt-1">{errors.confirmPassword.message}</p>}
           </div>
 
-          <div>
-            <label className="block text-sm mb-2 text-white/90">Account Type</label>
-            <div className="grid grid-cols-2 gap-3">
-              <label className={`relative flex items-center justify-center p-4 rounded-lg border-2 cursor-pointer transition ${
-                selectedRole === 'user' 
-                  ? 'border-brand-400 bg-brand-500/20' 
-                  : 'border-white/20 bg-white/5 hover:border-white/40'
-              }`}>
-                <input 
-                  type="radio" 
-                  value="user" 
-                  {...register('role')} 
-                  className="sr-only"
-                  disabled={loading}
-                />
-                <div className="text-center">
-                  <div className="text-3xl mb-2">👤</div>
-                  <div className="font-medium text-white">User</div>
-                  <div className="text-xs text-white/60">Standard access</div>
-                </div>
-              </label>
-
-              <label className={`relative flex items-center justify-center p-4 rounded-lg border-2 cursor-pointer transition ${
-                selectedRole === 'admin' 
-                  ? 'border-purple-400 bg-purple-500/20' 
-                  : 'border-white/20 bg-white/5 hover:border-white/40'
-              }`}>
-                <input 
-                  type="radio" 
-                  value="admin" 
-                  {...register('role')} 
-                  className="sr-only"
-                  disabled={loading}
-                />
-                <div className="text-center">
-                  <div className="text-3xl mb-2">👑</div>
-                  <div className="font-medium text-white">Admin</div>
-                  <div className="text-xs text-white/60">Full control</div>
-                </div>
-              </label>
-            </div>
-            {errors.role && <p className="text-xs text-red-300 mt-1">{errors.role.message}</p>}
-            
-            {selectedRole === 'admin' && (
-              <div className="mt-2 p-3 rounded-lg bg-purple-500/10 border border-purple-500/30 text-xs text-purple-200">
-                ⚠️ Admin accounts have access to Admin Dashboard and Ops Dashboard with system monitoring capabilities.
-              </div>
-            )}
-          </div>
-
           <Button type="submit" className="w-full" loading={loading}>
-            {loading ? 'Creating Account...' : '→ Create Account'}
+            {loading ? 'Creating Account...' : 'Create Account'}
           </Button>
         </form>
 

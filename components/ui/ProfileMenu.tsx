@@ -1,8 +1,8 @@
 "use client";
 import React, { useState, useRef, useEffect } from 'react';
-import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Avatar } from '@/components/ui/Avatar';
+import { getApiUrl } from '@/lib/apiConfig';
 
 type UserStatus = 'available' | 'away' | 'busy' | 'inmeeting' | 'offline';
 
@@ -15,12 +15,34 @@ const statusConfig = {
 };
 
 export function ProfileMenu() {
-  const { data: session } = useSession();
   const router = useRouter();
+  const [user, setUser] = useState<any>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const [currentStatus, setCurrentStatus] = useState<UserStatus>('available');
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Fetch user data
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        const response = await fetch(getApiUrl('auth/me'), {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setUser(data.user);
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error);
+      }
+    };
+    fetchUser();
+  }, []);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -34,17 +56,17 @@ export function ProfileMenu() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  if (!session?.user) return null;
+  if (!user) return null;
 
-  const user = session.user;
-  const isAdmin = (user as any)?.role === 'admin';
-  const userName = user.name || user.email?.split('@')[0] || 'User';
-  const userEmail = user.email || '';
+  const isAdmin = user?.role === 'admin';
+  const userName = user?.name || user?.email?.split('@')[0] || 'User';
+  const userEmail = user?.email || '';
+  // Use avatar from user data (includes Google profile pictures)
+  const userAvatar = user?.avatar || user?.picture || undefined;
 
   function handleStatusChange(status: UserStatus) {
     setCurrentStatus(status);
     setShowStatusMenu(false);
-    // Static code Backend team please change it to dynamic - update status in database
     console.log('Status changed to:', status);
   }
 
@@ -54,20 +76,26 @@ export function ProfileMenu() {
   }
 
   function handleSignOut() {
-    signOut({ callbackUrl: '/login' });
+    // Clear tokens
+    localStorage.removeItem('token');
+    document.cookie = 'auth-token=; path=/; max-age=0';
+    router.push('/login');
   }
 
   return (
     <div className="relative" ref={menuRef}>
       {/* Profile Button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          console.log('Profile button clicked, current isOpen:', isOpen);
+          setIsOpen(!isOpen);
+        }}
         className="flex items-center gap-2 p-2 rounded-lg hover:bg-white/10 transition"
         aria-label="Profile menu"
       >
         <div className="relative">
           <Avatar 
-            src={user.image || undefined} 
+            src={userAvatar} 
             name={userName} 
             size="md"
           />
@@ -77,13 +105,13 @@ export function ProfileMenu() {
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-72 bg-brand-800/95 backdrop-blur-lg border border-white/20 rounded-xl shadow-xl z-50 overflow-hidden">
+        <div className="absolute right-0 top-full mt-2 w-72 bg-brand-800/95 backdrop-blur-lg border border-white/20 rounded-xl shadow-xl z-[100] overflow-hidden">
           {/* User Info Header */}
           <div className="px-4 py-3 border-b border-white/10 bg-white/5">
             <div className="flex items-center gap-3">
               <div className="relative">
                 <Avatar 
-                  src={user.image || undefined} 
+                  src={userAvatar} 
                   name={userName} 
                   size="lg"
                 />
@@ -140,13 +168,46 @@ export function ProfileMenu() {
             </button>
 
             {/* Add Photos */}
-            <button
-              onClick={() => handleNavigation('/profile#photos')}
-              className="w-full px-4 py-2.5 text-left text-white hover:bg-white/10 transition flex items-center gap-3"
-            >
+            <label className="w-full px-4 py-2.5 text-left text-white hover:bg-white/10 transition flex items-center gap-3 cursor-pointer">
               <span className="text-xl">📷</span>
-              <span className="font-medium">Add Photos</span>
-            </button>
+              <span className="font-medium">Change Profile Picture</span>
+              <input 
+                type="file" 
+                accept="image/*" 
+                className="hidden" 
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  
+                  // Upload file
+                  const formData = new FormData();
+                  formData.append('file', file);
+                  
+                  try {
+                    const token = localStorage.getItem('token');
+                    const response = await fetch(getApiUrl('users/me/avatar'), {
+                      method: 'POST',
+                      headers: {
+                        'Authorization': `Bearer ${token}`
+                      },
+                      body: formData
+                    });
+                    
+                    if (response.ok) {
+                      const data = await response.json();
+                      alert('Profile picture updated!');
+                      // Refresh user data
+                      window.location.reload();
+                    } else {
+                      alert('Failed to upload profile picture');
+                    }
+                  } catch (error) {
+                    console.error('Error uploading avatar:', error);
+                    alert('Error uploading profile picture');
+                  }
+                }}
+              />
+            </label>
 
             {/* Change Status */}
             <div className="relative">
@@ -196,7 +257,6 @@ export function ProfileMenu() {
           {/* Footer */}
           <div className="px-4 py-2 border-t border-white/10 bg-white/5">
             <p className="text-[10px] text-white/40 text-center">
-              Static code Backend team please change it to dynamic
             </p>
           </div>
         </div>
