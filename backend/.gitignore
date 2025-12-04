@@ -1,0 +1,43 @@
+# Python virtual environments
+venv/
+venv_old/
+env/
+ENV/
+.venv/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environment variables (keep .env.example)
+.env
+.env.local
+.env.production
+
+# Flask/Python
+instance/
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# Static uploads (user-uploaded files)
+static/uploads/*
+!static/uploads/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Process IDs
+*.pid
+backend.pid
