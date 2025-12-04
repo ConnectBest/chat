@@ -191,8 +191,24 @@ class Login(Resource):
             
             return {'user': formatted_user, 'token': token}, 200
         except Exception as e:
-            current_app.logger.error(f"Login error: {str(e)}")
-            return {'error': 'Login failed'}, 500
+            import traceback
+            error_details = {
+                'error': str(e),
+                'type': type(e).__name__,
+                'traceback': traceback.format_exc()
+            }
+            current_app.logger.error(f"Login error for {email}: {error_details}")
+
+            # Provide more specific error messages for common issues
+            if 'pymongo' in str(e).lower() or 'mongo' in str(e).lower():
+                current_app.logger.error(f"Database connection error during login: {str(e)}")
+                return {'error': 'Database connection failed. Please try again later.'}, 503
+            elif 'jwt' in str(e).lower() or 'token' in str(e).lower():
+                current_app.logger.error(f"Token generation error during login: {str(e)}")
+                return {'error': 'Authentication token generation failed.'}, 500
+            else:
+                current_app.logger.error(f"Unexpected login error: {str(e)}")
+                return {'error': 'An unexpected error occurred during login.'}, 500
 
 
 @auth_ns.route('/me')

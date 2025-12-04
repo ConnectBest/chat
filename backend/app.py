@@ -82,47 +82,86 @@ def create_app():
     # Initialize MongoDB connection
     # Use connection pooling - don't close connection after each request
     try:
+        logger.info(f"Initializing MongoDB connection...")
+        logger.info(f"MONGODB_URI configured: {bool(app.config.get('MONGODB_URI'))}")
+
         # Build connection options based on URI
         connection_options = {
-            'serverSelectionTimeoutMS': 15000,  # Increased timeout for initial connection
-            'connectTimeoutMS': 15000,  # Connection timeout
-            'socketTimeoutMS': 15000,  # Socket timeout
-            'maxPoolSize': 20,  # Reduced pool size for container environments
-            'minPoolSize': 5,  # Minimum number of connections in the pool
+            'serverSelectionTimeoutMS': 30000,  # Increased timeout for initial connection
+            'connectTimeoutMS': 30000,  # Connection timeout
+            'socketTimeoutMS': 30000,  # Socket timeout
+            'maxPoolSize': 10,  # Reduced pool size for container environments
+            'minPoolSize': 1,  # Minimum number of connections in the pool
             'maxIdleTimeMS': 30000,  # Close connections after 30 seconds of inactivity
             'retryWrites': True,  # Enable retry writes
-            'w': 'majority'  # Write concern
+            'w': 'majority',  # Write concern
+            'heartbeatFrequencyMS': 10000,  # Heartbeat frequency
+            'serverSelectionRetrySeconds': 30  # Retry server selection
         }
 
+        mongodb_uri = app.config.get('MONGODB_URI')
+        if not mongodb_uri:
+            raise ValueError("MONGODB_URI environment variable is not set")
+
         # Add TLS/SSL configuration for Atlas connections
-        if 'mongodb+srv://' in app.config['MONGODB_URI'] or 'ssl=true' in app.config['MONGODB_URI']:
+        if 'mongodb+srv://' in mongodb_uri or 'ssl=true' in mongodb_uri.lower():
+            logger.info("Configuring MongoDB connection for Atlas (TLS enabled)")
             connection_options.update({
                 'tls': True,
                 'tlsCAFile': certifi.where(),
                 'tlsAllowInvalidCertificates': False,
                 'tlsAllowInvalidHostnames': False
             })
+        else:
+            logger.info("Configuring MongoDB connection for standard deployment")
+
+        logger.info(f"MongoDB URI type: {'Atlas (mongodb+srv)' if 'mongodb+srv://' in mongodb_uri else 'Standard'}")
 
         app.mongo_client = MongoClient(
-            app.config['MONGODB_URI'],
+            mongodb_uri,
             **connection_options
         )
 
         # Test connection with retry
-        max_retries = 3
+        max_retries = 5
         for attempt in range(max_retries):
             try:
-                app.mongo_client.server_info()
+                logger.info(f"Testing MongoDB connection (attempt {attempt + 1}/{max_retries})")
+                server_info = app.mongo_client.server_info()
+                logger.info(f"MongoDB server version: {server_info.get('version', 'unknown')}")
                 break
             except Exception as e:
                 if attempt == max_retries - 1:
+                    logger.error(f"Failed to connect to MongoDB after {max_retries} attempts: {str(e)}")
                     raise
-                logger.warning(f"MongoDB connection attempt {attempt + 1} failed: {str(e)}, retrying...")
+                logger.warning(f"MongoDB connection attempt {attempt + 1} failed: {str(e)}, retrying in 2 seconds...")
+                import time
+                time.sleep(2)
 
         app.db = app.mongo_client[app.config['MONGODB_DB_NAME']]
-        logger.info(f"✅ Connected to MongoDB: {app.config['MONGODB_DB_NAME']}")
+
+        # Test database access
+        collections = app.db.list_collection_names()
+        logger.info(f"✅ Connected to MongoDB database '{app.config['MONGODB_DB_NAME']}' with {len(collections)} collections")
+
+        # Log some collection names for verification
+        if collections:
+            logger.info(f"Available collections: {', '.join(collections[:5])}{'...' if len(collections) > 5 else ''}")
+        else:
+            logger.warning("No collections found in database (this is normal for a new database)")
+
     except Exception as e:
         logger.error(f"❌ Failed to connect to MongoDB: {str(e)}")
+        logger.error(f"MongoDB URI configured: {bool(app.config.get('MONGODB_URI'))}")
+        if app.config.get('MONGODB_URI'):
+            # Log URI type without exposing credentials
+            uri = app.config['MONGODB_URI']
+            if 'mongodb+srv://' in uri:
+                logger.error("URI type: MongoDB Atlas (mongodb+srv)")
+            elif 'mongodb://' in uri:
+                logger.error("URI type: Standard MongoDB")
+            else:
+                logger.error("URI type: Invalid format")
         raise
     
     # Initialize Flask-RESTX API with Swagger documentation
@@ -207,24 +246,63 @@ def create_app():
     def health_check():
         """
         Health check endpoint to verify API is running
-        
+
         Returns:
             JSON response with status
         """
+        health_status = {
+            'status': 'healthy',
+            'timestamp': datetime.utcnow().isoformat(),
+            'flask_env': app.config.get('FLASK_ENV', 'unknown'),
+            'debug': app.config.get('DEBUG', 'unknown')
+        }
+
         try:
-            # Check MongoDB connection
-            app.mongo_client.server_info()
-            return jsonify({
-                'status': 'healthy',
+            # Check MongoDB connection with detailed diagnostics
+            start_time = datetime.utcnow()
+            server_info = app.mongo_client.server_info()
+            connection_time = (datetime.utcnow() - start_time).total_seconds()
+
+            # Test database access
+            db_name = app.config.get('MONGODB_DB_NAME', 'chatapp')
+            collections = app.db.list_collection_names()
+
+            health_status.update({
                 'database': 'connected',
-                'message': 'Chat API is running'
-            }), 200
-        except Exception as e:
+                'mongodb_version': server_info.get('version', 'unknown'),
+                'connection_time_seconds': round(connection_time, 3),
+                'database_name': db_name,
+                'collections_count': len(collections),
+                'mongodb_uri_type': 'atlas' if 'mongodb+srv://' in app.config.get('MONGODB_URI', '') else 'standard'
+            })
+
             return jsonify({
+                'message': 'Chat API is running',
+                **health_status
+            }), 200
+
+        except Exception as e:
+            import traceback
+            error_details = {
+                'error': str(e),
+                'error_type': type(e).__name__,
+                'traceback': traceback.format_exc()
+            }
+
+            health_status.update({
                 'status': 'unhealthy',
                 'database': 'disconnected',
-                'error': str(e)
-            }), 500
+                'mongodb_uri_configured': bool(app.config.get('MONGODB_URI')),
+                'mongodb_uri_type': 'atlas' if 'mongodb+srv://' in app.config.get('MONGODB_URI', '') else 'standard',
+                'error_details': error_details
+            })
+
+            logger.error(f"Health check failed: {error_details}")
+
+            return jsonify({
+                'message': 'Chat API is running but database is unavailable',
+                **health_status
+            }), 503
     
     # Root endpoint
     @app.route('/')
