@@ -31,8 +31,6 @@ export const api = {
   listChannels: (token?: string) => client.get('/chat/channels', { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.data),
   createChannel: (name: string, token?: string) => client.post('/chat/channels', { name }, { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.data),
   getChannelDetails: (channelId: string, token?: string) => client.get(`/chat/channels/${channelId}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.data),
-  addChannelMember: (channelId: string, userId: string, token?: string) => client.post(`/chat/channels/${channelId}/members/${userId}`, {}, { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.data),
-  removeChannelMember: (channelId: string, userId: string, token?: string) => client.delete(`/chat/channels/${channelId}/members/${userId}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.data),
   addChannelMember: (channelId: string, userId: string, token?: string) => client.post(`/chat/channels/${channelId}/members`, { user_id: userId }, { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.data),
   removeChannelMember: (channelId: string, userId: string, token?: string) => client.delete(`/chat/channels/${channelId}/members/${userId}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} }).then(r => r.data),
   // Messages

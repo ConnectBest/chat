@@ -1,10 +1,10 @@
 "use client";
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import Link from 'next/link';
 
-export default function VerifyEmailPage() {
+function VerifyEmailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying');
@@ -13,7 +13,7 @@ export default function VerifyEmailPage() {
 
   useEffect(() => {
     const token = searchParams.get('token');
-    
+
     if (!token) {
       setStatus('error');
       setMessage('Verification token is missing. Please check your email link.');
@@ -37,13 +37,13 @@ export default function VerifyEmailPage() {
         setStatus('success');
         setMessage(data.message || 'Your email has been verified successfully!');
         setUserName(data.user?.name || data.user?.full_name || '');
-        
+
         // Store token for auto-login
         if (data.token) {
           localStorage.setItem('token', data.token);
           localStorage.setItem('user', JSON.stringify(data.user));
         }
-        
+
         // Redirect to chat after 3 seconds
         setTimeout(() => {
           router.push('/chat');
@@ -102,7 +102,7 @@ export default function VerifyEmailPage() {
               </div>
               <h1 className="text-3xl font-bold text-white mb-2">Verification Failed ❌</h1>
               <p className="text-white/70 mb-6">{message}</p>
-              
+
               <div className="space-y-3">
                 <Link href="/register">
                   <Button variant="primary" className="w-full">
@@ -128,5 +128,24 @@ export default function VerifyEmailPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-brand-900 via-brand-800 to-brand-900">
+        <div className="w-full max-w-md space-y-6 rounded-xl bg-brand-800/70 backdrop-blur-lg p-8 border border-white/20 shadow-2xl">
+          <div className="text-center">
+            <div className="mb-6">
+              <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-brand-400"></div>
+            </div>
+            <h1 className="text-3xl font-bold text-white mb-2">Loading...</h1>
+          </div>
+        </div>
+      </div>
+    }>
+      <VerifyEmailContent />
+    </Suspense>
   );
 }
