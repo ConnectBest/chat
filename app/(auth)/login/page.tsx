@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,7 +16,7 @@ const schema = z.object({
   verificationCode: z.string().optional(),
 });
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
@@ -43,6 +43,7 @@ export default function LoginPage() {
     setError('');
 
     try {
+<<<<<<< HEAD
       console.log('📡 Sending login request to backend...');
       // Login directly to backend
       const response = await fetch(getApiUrl('auth/login'), {
@@ -63,6 +64,31 @@ export default function LoginPage() {
         setError(data.error || 'Invalid credentials');
         setLoading(false);
         return;
+=======
+      console.log('🔐 Attempting login...', { email: values.email });
+      const result = await signIn('credentials', {
+        email: values.email,
+        password: values.password,
+        verificationCode: values.verificationCode,
+        redirect: false,
+      });
+
+      console.log('🔐 Login result:', result);
+
+      if (result?.error) {
+        console.error('❌ Login error:', result.error);
+        if (result.error === 'VERIFICATION_REQUIRED') {
+          setNeedsVerification(true);
+          setError('📧 Verification code sent to your email! Please check your inbox.');
+        } else {
+          setError(result.error);
+        }
+      } else if (result?.ok) {
+        // Successful login
+        const callbackUrl = searchParams.get('callbackUrl') || '/chat';
+        router.push(callbackUrl);
+        router.refresh();
+>>>>>>> 399e8d1b7b8b74bbff8cb0637d760c3feae65df8
       }
 
       console.log('✅ Backend authentication successful!');
@@ -87,7 +113,11 @@ export default function LoginPage() {
       console.log('🚀 Redirecting to:', redirectUrl);
       window.location.href = redirectUrl;
     } catch (err) {
+<<<<<<< HEAD
       console.error('💥 Login exception:', err);
+=======
+      console.error('❌ Login exception:', err);
+>>>>>>> 399e8d1b7b8b74bbff8cb0637d760c3feae65df8
       setError('An unexpected error occurred');
       setLoading(false);
     }
@@ -96,6 +126,7 @@ export default function LoginPage() {
   async function handleGoogleSignIn() {
     setLoading(true);
     try {
+<<<<<<< HEAD
       // Get OAuth URL from backend
       const response = await fetch(getApiUrl('auth/google'));
       const data = await response.json();
@@ -107,6 +138,11 @@ export default function LoginPage() {
         setError('Failed to get Google sign-in URL');
         setLoading(false);
       }
+=======
+      await signIn('google', { 
+        callbackUrl: searchParams.get('callbackUrl') || '/chat' 
+      });
+>>>>>>> 399e8d1b7b8b74bbff8cb0637d760c3feae65df8
     } catch (err) {
       setError('Google sign-in failed');
       setLoading(false);
@@ -212,5 +248,21 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-brand-900 via-brand-800 to-brand-900">
+        <div className="w-full max-w-md space-y-6 rounded-xl bg-brand-800/70 backdrop-blur-lg p-8 border border-white/20 shadow-2xl">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold text-white mb-2">Loading...</h1>
+          </div>
+        </div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

@@ -27,7 +27,6 @@
     "react-dropzone": "^14.2.3",
     "react-hook-form": "^7.50.0",
     "recharts": "^2.12.7",
-    "socket.io-client": "^4.7.5",
     "zod": "^3.23.8"
   },
   "devDependencies": {

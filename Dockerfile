@@ -3,8 +3,9 @@ FROM node:20-slim AS builder
 
 WORKDIR /app
 
-# Build arg to bust cache when needed
+# Build args
 ARG CACHEBUST=1
+ARG NEXT_PUBLIC_WEBSOCKET_URL
 
 # Copy package files
 COPY package*.json ./
@@ -16,7 +17,8 @@ RUN npm install --registry=https://registry.npmjs.org/ --no-audit
 # Copy source files
 COPY . .
 
-# Build Next.js app
+# Build Next.js app with NEXT_PUBLIC_* env vars
+ENV NEXT_PUBLIC_WEBSOCKET_URL=$NEXT_PUBLIC_WEBSOCKET_URL
 RUN npm run build
 
 # Production stage

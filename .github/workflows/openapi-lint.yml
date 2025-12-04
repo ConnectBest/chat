@@ -1,0 +1,11 @@
+name: OpenAPI Lint
+on:
+  pull_request:
+    paths: [ "api/**" ]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm i -g @redocly/cli
+      - run: redocly lint api/openapi.yaml

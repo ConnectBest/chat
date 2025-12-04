@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data } = await axios.post('/api/auth/login', { email, password });
       setUser(data.user);
       if (data.token) { localStorage.setItem('mock_token', data.token); }
-      window.location.href = '/chat/general';
+      window.location.href = '/chat';
     } catch (err) {
       console.error('Login failed:', err);
       alert('Login failed. Please register first or check credentials.');
@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data } = await axios.post('/api/auth/register', { email, password, name });
       setUser(data.user);
       if (data.token) { localStorage.setItem('mock_token', data.token); }
-      window.location.href = '/chat/general';
+      window.location.href = '/chat';
     } catch (err) {
       console.error('Registration failed:', err);
       alert('Registration failed. Please try again.');

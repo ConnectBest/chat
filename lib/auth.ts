@@ -18,6 +18,8 @@ export interface ExtendedUser {
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  trustHost: true, // Required for deployment behind proxies/load balancers
+  useSecureCookies: process.env.NODE_ENV === 'production',
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,

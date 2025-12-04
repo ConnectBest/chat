@@ -1,0 +1,182 @@
+openapi: 3.0.3
+info:
+  title: Chat Enterprise API
+  version: 0.1.0
+  description: Basic OpenAPI skeleton for the chat project.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: https://api.connectbest.dev/v1
+    description: Production
+  - url: https://staging.connectbest.dev/v1
+    description: Staging
+tags:
+  - name: auth
+    description: Authentication, SSO, and 2FA endpoints.
+  - name: users
+    description: User profile and identity endpoints.
+  - name: channels
+    description: Channel CRUD and membership management.
+  - name: dms
+    description: Direct message conversations between users.
+  - name: messages
+    description: Post, list, thread replies, and reactions.
+  - name: files
+    description: File upload, metadata, and delivery.
+  - name: search
+    description: Search across messages and channels.
+  - name: presence
+    description: Online status and typing indicators.
+  - name: admin
+    description: Administrative actions such as user suspension.
+  - name: ops
+    description: Operations and observability endpoints (health, metrics).
+
+security:
+  - bearerAuth: []
+
+paths:
+  /healthz:
+    get:
+      operationId: getHealthz
+      tags: [ops]
+      summary: Liveness probe
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Healthz'
+        '400':
+          description: Bad request
+  /auth/email/verify/request:
+    post:
+      operationId: requestEmailVerification
+      tags: [auth]
+      summary: Send email verification link to the current user
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '204':
+          description: Email verification link sent successfully
+        '401':
+          description: Unauthorized – invalid or missing token
+
+  /auth/email/verify/confirm:
+    post:
+      operationId: confirmEmailVerification
+      tags: [auth]
+      summary: Confirm email verification using the token from the email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+                  description: Verification token from the email link
+      responses:
+        '204':
+          description: Email verified successfully
+        '400':
+          description: Invalid or expired token
+
+  /auth/password/forgot:
+    post:
+      operationId: requestPasswordReset
+      tags: [auth]
+      summary: Request password reset link via email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: User's registered email address
+      responses:
+        '204':
+          description: Password reset email sent successfully
+
+  /auth/password/reset:
+    post:
+      operationId: resetPassword
+      tags: [auth]
+      summary: Reset password using the reset token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, newPassword]
+              properties:
+                token:
+                  type: string
+                  description: Reset token received by email
+                newPassword:
+                  type: string
+                  minLength: 8
+                  description: New password to set
+      responses:
+        '204':
+          description: Password reset successful
+        '400':
+          description: Invalid or expired token
+  /ws:
+    get:
+      operationId: websocketHandshake
+      tags: [messages]
+      summary: WebSocket handshake (upgrade HTTP to WS)
+      description: |
+        **Protocol:** Use `wss://` in production environments for security.  
+        **Authentication:**  
+        During the HTTP upgrade request, clients must include an `Authorization: Bearer <JWT>` header.  
+        The server will validate the token and associate the connection with the authenticated user ID.
+
+        **Client → Server JSON messages:**
+        - `{"type": "join", "channelId": "<id>"}`
+        - `{"type": "typing", "channelId": "<id>", "isTyping": true}`
+        - `{"type": "message", "channelId": "<id>", "text": "Hello world!"}`
+
+        **Server → Client JSON messages:**
+        - `{"type": "presence", "userId": "u1", "status": "online"}`
+        - `{"type": "message", "id": "m1", "channelId": "<id>", "text": "Hello world!", "authorId": "u1"}`
+        - `{"type": "typing", "userId": "u1", "channelId": "<id>", "isTyping": true}`
+
+        This WebSocket connection enables real-time messaging, presence updates,  
+        typing indicators, and file upload notifications between clients.
+
+      responses:
+        '101':
+          description: Switching Protocols — successfully upgraded to WebSocket
+        '401':
+          description: Unauthorized — missing or invalid JWT token
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Healthz:
+      type: object
+      properties:
+        status:
+          type: string
+          description: Service health status.
+          example: ok
+        timestamp:
+          type: string
+          format: date-time
+          description: RFC 3339 timestamp when the check was generated.

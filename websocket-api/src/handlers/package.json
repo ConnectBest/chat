@@ -1,0 +1,17 @@
+{
+  "name": "connectbest-websocket-handlers",
+  "version": "1.0.0",
+  "description": "Lambda handlers for ConnectBest Chat WebSocket API",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "keywords": ["websocket", "lambda", "api-gateway"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.0.0",
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/lib-dynamodb": "^3.0.0"
+  }
+}

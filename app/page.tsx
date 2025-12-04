@@ -1,8 +1,13 @@
+<<<<<<< HEAD
 'use client';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './page.module.css';
 import Link from 'next/link';
+=======
+import styles from './page.module.css'
+import Link from 'next/link'
+>>>>>>> 399e8d1b7b8b74bbff8cb0637d760c3feae65df8
 
 export default function Home() {
   const router = useRouter();
@@ -49,6 +54,7 @@ export default function Home() {
         </div>
 
         <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+<<<<<<< HEAD
           <Link 
             href="/login" 
             style={{
@@ -78,6 +84,23 @@ export default function Home() {
             }}
           >
             Register
+=======
+          <Link
+            href="/chat"
+            style={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
+              padding: '12px 32px',
+              borderRadius: '8px',
+              textDecoration: 'none',
+              fontWeight: 600,
+              fontSize: '1rem',
+              boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+              transition: 'transform 0.2s, box-shadow 0.2s'
+            }}
+          >
+            Start Chatting
+>>>>>>> 399e8d1b7b8b74bbff8cb0637d760c3feae65df8
           </Link>
         </div>
 

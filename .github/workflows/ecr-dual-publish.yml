@@ -88,6 +88,7 @@ jobs:
           push: true
           build-args: |
             CACHEBUST=${{ github.run_number }}
+            NEXT_PUBLIC_WEBSOCKET_URL=${{ secrets.WEBSOCKET_URL }}
           tags: |
             ${{ steps.uris.outputs.PUBLIC_URI }}:latest
             ${{ steps.uris.outputs.PUBLIC_URI }}:${{ env.IMAGE_TAG_SHA }}
@@ -124,6 +125,16 @@ jobs:
       - name: Deploy to Lightsail
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
+          EMAIL_PORT: ${{ secrets.EMAIL_PORT }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          NEXT_PUBLIC_WEBSOCKET_URL: ${{ secrets.WEBSOCKET_URL }}
         run: |
           echo "Checking deployment status..."
 
