@@ -11,6 +11,7 @@ eventlet==0.35.1    # Async networking library for WebSocket
 # Database
 pymongo==4.6.1      # MongoDB driver
 mongoengine==0.28.2 # MongoDB ODM (Object Document Mapper)
+certifi==2023.11.17 # SSL certificate bundle for secure connections
 
 # Authentication & Security
 PyJWT==2.8.0        # JSON Web Tokens

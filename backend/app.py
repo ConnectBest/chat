@@ -85,18 +85,19 @@ def create_app():
         logger.info(f"Initializing MongoDB connection...")
         logger.info(f"MONGODB_URI configured: {bool(app.config.get('MONGODB_URI'))}")
 
-        # Build connection options based on URI
+        # Build connection options based on URI - optimized for production containers
         connection_options = {
-            'serverSelectionTimeoutMS': 30000,  # Increased timeout for initial connection
-            'connectTimeoutMS': 30000,  # Connection timeout
-            'socketTimeoutMS': 30000,  # Socket timeout
-            'maxPoolSize': 10,  # Reduced pool size for container environments
-            'minPoolSize': 1,  # Minimum number of connections in the pool
-            'maxIdleTimeMS': 30000,  # Close connections after 30 seconds of inactivity
+            'serverSelectionTimeoutMS': 10000,  # Reduced timeout for faster failure detection
+            'connectTimeoutMS': 10000,  # Connection timeout
+            'socketTimeoutMS': 10000,  # Socket timeout
+            'maxPoolSize': 5,  # Small pool size for container environments
+            'minPoolSize': 1,  # Keep at least one connection
+            'maxIdleTimeMS': 10000,  # Close idle connections quickly
             'retryWrites': True,  # Enable retry writes
             'w': 'majority',  # Write concern
-            'heartbeatFrequencyMS': 10000,  # Heartbeat frequency
-            'serverSelectionRetrySeconds': 30  # Retry server selection
+            'heartbeatFrequencyMS': 30000,  # Heartbeat frequency
+            'directConnection': False,  # Allow connection to replica sets
+            'waitQueueTimeoutMS': 5000,  # Timeout for getting a connection from the pool
         }
 
         mongodb_uri = app.config.get('MONGODB_URI')
@@ -263,16 +264,31 @@ def create_app():
             server_info = app.mongo_client.server_info()
             connection_time = (datetime.utcnow() - start_time).total_seconds()
 
-            # Test database access
+            # Test database access and actual operations (like auth routes use)
             db_name = app.config.get('MONGODB_DB_NAME', 'chatapp')
-            collections = app.db.list_collection_names()
+
+            # Test actual database operations that auth routes use
+            try:
+                # Test collections access
+                collections = app.db.list_collection_names()
+
+                # Test user collection operations (what registration/login use)
+                user_collection = app.db['users']
+                user_collection.find_one({'_test': 'health_check'})  # Non-existent test query
+
+                db_operations_working = True
+            except Exception as db_op_error:
+                logger.error(f"Database operations test failed: {str(db_op_error)}")
+                db_operations_working = False
+                raise db_op_error
 
             health_status.update({
                 'database': 'connected',
+                'database_operations': 'working' if db_operations_working else 'failed',
                 'mongodb_version': server_info.get('version', 'unknown'),
                 'connection_time_seconds': round(connection_time, 3),
                 'database_name': db_name,
-                'collections_count': len(collections),
+                'collections_count': len(collections) if db_operations_working else 0,
                 'mongodb_uri_type': 'atlas' if 'mongodb+srv://' in app.config.get('MONGODB_URI', '') else 'standard'
             })
 
