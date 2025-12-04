@@ -27,7 +27,8 @@
       "Bash(git show:*)",
       "Bash(gh secret list:*)",
       "Bash(node -e:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(git ls-tree:*)"
     ],
     "deny": [],
     "ask": []
