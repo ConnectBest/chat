@@ -744,6 +744,7 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
 
   function shouldShowDateSeparator(currentMsg: Message, prevMsg: Message | undefined) {
     if (!prevMsg) return true;
+    if (!currentMsg.createdAt || !prevMsg.createdAt) return false;
     const currentDate = new Date(currentMsg.createdAt).toDateString();
     const prevDate = new Date(prevMsg.createdAt).toDateString();
     return currentDate !== prevDate;
