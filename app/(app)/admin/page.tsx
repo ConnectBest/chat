@@ -135,7 +135,18 @@ export default function AdminPage() {
   return (
     <div className="h-screen overflow-y-auto scrollbar-thin bg-gradient-to-br from-brand-900 via-brand-800 to-brand-900 p-8">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-white mb-8">Admin Dashboard</h1>
+        {/* Header with Back Button */}
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
+          <Button
+            variant="secondary"
+            onClick={() => router.push('/chat')}
+            className="flex items-center gap-2"
+          >
+            <span>←</span>
+            <span>Back to Chat</span>
+          </Button>
+        </div>
 
         {/* Tabs */}
         <div className="flex gap-4 mb-6 overflow-x-auto">

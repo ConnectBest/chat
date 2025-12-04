@@ -2,8 +2,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 
-<<<<<<< HEAD
-=======
 interface WebSocketMessage {
   type: string;
   channelId?: string;
@@ -14,7 +12,6 @@ interface WebSocketMessage {
   [key: string]: any;
 }
 
->>>>>>> 399e8d1b7b8b74bbff8cb0637d760c3feae65df8
 interface SocketContextValue {
   socket: WebSocket | null;
   connected: boolean;
@@ -34,52 +31,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
   const reconnectAttemptsRef = useRef(0);
 
-<<<<<<< HEAD
-  useEffect(() => {
-    // Only connect if we have a session and an access token
-    if (status === 'authenticated' && session?.user && (session.user as any)?.accessToken) {
-      const token = (session.user as any).accessToken;
-      
-      try {
-        const s = io(SOCKET_URL, { 
-          auth: { token },
-          transports: ['websocket', 'polling'],
-          autoConnect: true,
-          reconnection: true,
-          reconnectionDelay: 1000,
-          reconnectionAttempts: 5
-        });
-        
-        socketRef.current = s;
-        
-        s.on('connect', () => {
-          console.log('Socket connected');
-          setConnected(true);
-        });
-        
-        s.on('disconnect', () => {
-          console.log('Socket disconnected');
-          setConnected(false);
-        });
-        
-        s.on('connect_error', (error) => {
-          // Silently handle connection errors - don't throw
-          console.warn('Socket connection error (will retry):', error.message);
-          setConnected(false);
-        });
-        
-        return () => { 
-          s.disconnect(); 
-        };
-      } catch (error) {
-        console.warn('Failed to initialize socket:', error);
-      }
-    } else if (socketRef.current) {
-      // Disconnect if session is lost
-      socketRef.current.disconnect();
-      socketRef.current = null;
-      setConnected(false);
-=======
   const connect = useCallback(() => {
     if (!session?.user) return;
 
@@ -131,9 +82,8 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       };
     } catch (error) {
       console.error('Failed to create WebSocket:', error);
->>>>>>> 399e8d1b7b8b74bbff8cb0637d760c3feae65df8
     }
-  }, [session, status]);
+  }, [session]);
 
   useEffect(() => {
     if (session?.user) {
