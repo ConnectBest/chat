@@ -43,15 +43,14 @@ function LoginForm() {
     setError('');
 
     try {
-<<<<<<< HEAD
       console.log('📡 Sending login request to backend...');
       // Login directly to backend
       const response = await fetch(getApiUrl('auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: values.email, 
-          password: values.password 
+        body: JSON.stringify({
+          email: values.email,
+          password: values.password
         }),
       });
 
@@ -64,31 +63,6 @@ function LoginForm() {
         setError(data.error || 'Invalid credentials');
         setLoading(false);
         return;
-=======
-      console.log('🔐 Attempting login...', { email: values.email });
-      const result = await signIn('credentials', {
-        email: values.email,
-        password: values.password,
-        verificationCode: values.verificationCode,
-        redirect: false,
-      });
-
-      console.log('🔐 Login result:', result);
-
-      if (result?.error) {
-        console.error('❌ Login error:', result.error);
-        if (result.error === 'VERIFICATION_REQUIRED') {
-          setNeedsVerification(true);
-          setError('📧 Verification code sent to your email! Please check your inbox.');
-        } else {
-          setError(result.error);
-        }
-      } else if (result?.ok) {
-        // Successful login
-        const callbackUrl = searchParams.get('callbackUrl') || '/chat';
-        router.push(callbackUrl);
-        router.refresh();
->>>>>>> 399e8d1b7b8b74bbff8cb0637d760c3feae65df8
       }
 
       console.log('✅ Backend authentication successful!');
@@ -113,11 +87,7 @@ function LoginForm() {
       console.log('🚀 Redirecting to:', redirectUrl);
       window.location.href = redirectUrl;
     } catch (err) {
-<<<<<<< HEAD
       console.error('💥 Login exception:', err);
-=======
-      console.error('❌ Login exception:', err);
->>>>>>> 399e8d1b7b8b74bbff8cb0637d760c3feae65df8
       setError('An unexpected error occurred');
       setLoading(false);
     }
@@ -126,11 +96,10 @@ function LoginForm() {
   async function handleGoogleSignIn() {
     setLoading(true);
     try {
-<<<<<<< HEAD
       // Get OAuth URL from backend
       const response = await fetch(getApiUrl('auth/google'));
       const data = await response.json();
-      
+
       if (data.auth_url) {
         // Redirect to Google OAuth
         window.location.href = data.auth_url;
@@ -138,11 +107,6 @@ function LoginForm() {
         setError('Failed to get Google sign-in URL');
         setLoading(false);
       }
-=======
-      await signIn('google', { 
-        callbackUrl: searchParams.get('callbackUrl') || '/chat' 
-      });
->>>>>>> 399e8d1b7b8b74bbff8cb0637d760c3feae65df8
     } catch (err) {
       setError('Google sign-in failed');
       setLoading(false);
