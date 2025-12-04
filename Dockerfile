@@ -16,19 +16,18 @@ ARG NEXT_PUBLIC_WEBSOCKET_URL
 ARG NEXT_PUBLIC_API_URL=http://localhost:5001/api
 ARG NEXT_PUBLIC_WS_URL=http://localhost:5001
 
-# Copy package files
+# Copy package files first for better layer caching
 COPY package*.json ./
 
 # Install dependencies
 RUN npm install --registry=https://registry.npmjs.org/ --no-audit
 
-# Copy frontend source files (exclude backend)
+# Copy frontend source files
 COPY app ./app
 COPY components ./components
 COPY lib ./lib
 COPY public ./public
-COPY *.config.js ./
-COPY *.ts ./
+COPY next.config.js ./
 COPY tsconfig.json ./
 COPY tailwind.config.js ./
 COPY postcss.config.js ./
