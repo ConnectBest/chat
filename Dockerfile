@@ -54,6 +54,7 @@ RUN apt-get update && \
     curl \
     ca-certificates \
     openssl \
+    dnsutils \
     supervisor && \
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs && \
@@ -61,7 +62,7 @@ RUN apt-get update && \
 
 # Create non-root user for security
 RUN addgroup --system --gid 1001 appuser && \
-    adduser --system --uid 1001 --gid 1001 appuser
+    adduser --system --uid 1001 --gid 1001 --shell /bin/bash appuser
 
 # -----------------------------------------------------------------------------
 # Install Backend Dependencies
