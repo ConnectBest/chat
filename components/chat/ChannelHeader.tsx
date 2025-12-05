@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
+import { useSession } from 'next-auth/react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -27,6 +28,7 @@ interface ChannelHeaderProps {
 }
 
 export function ChannelHeader({ channelId, channelName, memberCount, onUpdateChannel }: ChannelHeaderProps) {
+  const { data: session } = useSession();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showAddMembers, setShowAddMembers] = useState(false);
   const [showRenameChannel, setShowRenameChannel] = useState(false);
@@ -40,6 +42,13 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
   const [showHuddle, setShowHuddle] = useState(false);
   const [showCanvas, setShowCanvas] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Helper function to get token from either localStorage or NextAuth session
+  const getToken = () => {
+    const localToken = localStorage.getItem('token');
+    const sessionToken = (session?.user as any)?.accessToken;
+    return localToken || sessionToken;
+  };
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -55,7 +64,7 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
   // Load users and channel members
   useEffect(() => {
     async function loadData() {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       if (!token) return;
 
       try {
@@ -90,7 +99,7 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
     }
 
     loadData();
-  }, [channelId]);
+  }, [channelId, session]); // Add session to dependencies
 
   // Search users by name, email, or phone
   useEffect(() => {
@@ -115,27 +124,34 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
   }, [searchQuery, allUsers, channelMembers]);
 
   function handleAddMember(user: User) {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    
+    const token = getToken();
+    if (!token) {
+      console.error('No authentication token available');
+      alert('Authentication error. Please try logging in again.');
+      return;
+    }
+
+    console.log('Adding member:', user.id, 'to channel:', channelId);
+
     // Add to backend
     api.addChannelMember(channelId, user.id, token)
       .then(() => {
         setChannelMembers(prev => [...prev, user]);
         setSearchQuery('');
         setSearchResults([]);
-        console.log('Added member:', user);
+        console.log('✅ Added member successfully:', user);
       })
       .catch(error => {
-        console.error('Failed to add member:', error);
-        alert('Failed to add member to channel');
+        console.error('❌ Failed to add member:', error);
+        console.error('Error details:', error.response?.data || error.message);
+        alert(`Failed to add member: ${error.response?.data?.error || error.message}`);
       });
   }
 
   function handleRemoveMember(userId: string) {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) return;
-    
+
     // Remove from backend
     api.removeChannelMember(channelId, userId, token)
       .then(() => {
