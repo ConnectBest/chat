@@ -24,44 +24,33 @@ export default function ChatPage() {
 
         console.log('✅ [Chat] Session loaded, proceeding with auth check');
 
-        // Give a small delay to ensure localStorage is set after redirect
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // Check for token from both sources: localStorage (custom auth) and session (NextAuth)
-        const localToken = localStorage.getItem('token');
+        // Check for NextAuth session and token
         const sessionToken = (session?.user as any)?.accessToken;
-        const token = localToken || sessionToken;
+        const hasValidSession = status === 'authenticated' && session?.user && sessionToken;
 
-        console.log('🔑 [Chat] Token sources:', {
-          hasLocal: !!localToken,
-          hasSession: !!sessionToken,
-          usingToken: !!token,
-          sessionStatus: status
+        console.log('🔑 [Chat] Session info:', {
+          status,
+          hasUser: !!session?.user,
+          hasToken: !!sessionToken,
+          isValid: hasValidSession
         });
 
-        // Only redirect to login if we're sure there's no valid session
-        if (!token) {
-          // If status is 'unauthenticated', definitely redirect
-          // If status is 'authenticated' but no token, something's wrong - also redirect
-          if (status === 'unauthenticated' || (status === 'authenticated' && !sessionToken && !localToken)) {
-            console.log('❌ [Chat] No valid token found, redirecting to login');
-            router.push('/login');
-            return;
-          }
-          // If we get here, session might still be loading, so don't redirect yet
-          console.log('⏸️ [Chat] No token but session status unclear, waiting...');
+        // Redirect to login if not authenticated
+        if (status === 'unauthenticated' || !hasValidSession) {
+          console.log('❌ [Chat] No valid session found, redirecting to login');
+          router.push('/login');
           return;
         }
 
-        console.log('🚀 [Chat] Valid token found, fetching channels and DMs...');
+        console.log('🚀 [Chat] Valid session found, fetching channels and DMs...');
 
         // Fetch both channels and DM conversations
         const [channelsRes, dmsRes] = await Promise.all([
           fetch(getApiUrl('chat/channels'), {
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers: { 'Authorization': `Bearer ${sessionToken}` }
           }),
           fetch(getApiUrl('dm/conversations'), {
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers: { 'Authorization': `Bearer ${sessionToken}` }
           })
         ]);
 

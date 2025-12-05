@@ -43,49 +43,35 @@ function LoginForm() {
     setError('');
 
     try {
-      console.log('📡 Sending login request to backend...');
-      // Login directly to backend
-      const response = await fetch(getApiUrl('auth/login'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: values.email,
-          password: values.password
-        }),
+      console.log('📡 Using NextAuth credentials sign in...');
+
+      // Use NextAuth.js signIn function for credentials
+      const result = await signIn('credentials', {
+        email: values.email,
+        password: values.password,
+        redirect: false // Handle redirect manually to show proper feedback
       });
 
-      console.log('📥 Response status:', response.status);
-      const data = await response.json();
-      console.log('📦 Response data:', data);
+      console.log('📥 NextAuth result:', result);
 
-      if (!response.ok) {
-        console.error('❌ Login failed:', data.error);
-        setError(data.error || 'Invalid credentials');
+      if (result?.error) {
+        console.error('❌ Login failed:', result.error);
+        setError('Invalid credentials');
         setLoading(false);
         return;
       }
 
-      console.log('✅ Backend authentication successful!');
-      
-      // Store token and user data
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      console.log('💾 Token and user stored in localStorage');
-      
-      // Set cookie for middleware
-      document.cookie = `auth-token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}`; // 7 days
-      console.log('🍪 Cookie set for middleware');
+      if (result?.ok) {
+        console.log('✅ NextAuth authentication successful!');
 
-      console.log('👤 User role:', data.user.role);
+        // Get callback URL for redirect
+        const callbackUrl = searchParams.get('callbackUrl') || '/chat';
 
-      // Redirect based on role
-      const callbackUrl = searchParams.get('callbackUrl');
-      const redirectUrl = data.user.role === 'admin' && !callbackUrl
-        ? '/admin'
-        : callbackUrl || '/chat';
-      
-      console.log('🚀 Redirecting to:', redirectUrl);
-      window.location.href = redirectUrl;
+        console.log('🚀 Redirecting to:', callbackUrl);
+
+        // Use router.push for client-side navigation
+        router.push(callbackUrl);
+      }
     } catch (err) {
       console.error('💥 Login exception:', err);
       setError('An unexpected error occurred');
