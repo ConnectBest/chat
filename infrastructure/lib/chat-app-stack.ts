@@ -197,7 +197,7 @@ export class ChatAppStack extends cdk.Stack {
         // Google OAuth - using environment variables for security
         GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '699045979125-v1tjnfluhmobrod8hogdbktqgi2vpv3t.apps.googleusercontent.com',
         GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || 'PLACEHOLDER_SECRET',
-        GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI || 'https://connect-best.com/api/auth/google/callback',
+        GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI || 'https://chat.connect-best.com/api/auth/callback/google',
 
         // Email configuration for verification emails - AWS SES
         SMTP_HOST: process.env.EMAIL_HOST || 'email-smtp.us-west-2.amazonaws.com',
