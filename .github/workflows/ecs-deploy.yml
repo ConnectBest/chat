@@ -191,7 +191,7 @@ jobs:
           rm -rf lib/*.js lib/*.d.ts
           npm install
           npm run build
-          npx cdk deploy --require-approval never
+          npx cdk deploy --require-approval never --no-version-reporting
 
       - name: Wait for deployment to complete
         run: |
