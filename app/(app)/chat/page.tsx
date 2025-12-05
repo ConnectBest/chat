@@ -2,18 +2,26 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { getApiUrl } from '@/lib/apiConfig';
 
 export default function ChatPage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [channels, setChannels] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchAndRedirect = async () => {
       try {
-        const token = localStorage.getItem('token');
-        
+        // Give a small delay to ensure localStorage is set after redirect
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Check for token from both sources: localStorage (custom auth) and session (NextAuth)
+        const localToken = localStorage.getItem('token');
+        const sessionToken = (session?.user as any)?.accessToken;
+        const token = localToken || sessionToken;
+
         if (!token) {
           router.push('/login');
           return;
@@ -79,7 +87,7 @@ export default function ChatPage() {
     };
 
     fetchAndRedirect();
-  }, [router]);
+  }, [router, session, status]);
 
   if (loading) {
     return (

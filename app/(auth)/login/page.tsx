@@ -80,9 +80,9 @@ function LoginForm() {
 
       // Redirect based on role
       const callbackUrl = searchParams.get('callbackUrl');
-      const redirectUrl = data.user.role === 'admin' && !callbackUrl 
-        ? '/admin' 
-        : callbackUrl || '/chat/general';
+      const redirectUrl = data.user.role === 'admin' && !callbackUrl
+        ? '/admin'
+        : callbackUrl || '/chat';
       
       console.log('🚀 Redirecting to:', redirectUrl);
       window.location.href = redirectUrl;
@@ -98,7 +98,7 @@ function LoginForm() {
     try {
       // Use NextAuth.js signIn function for Google OAuth
       const result = await signIn('google', {
-        callbackUrl: searchParams.get('callbackUrl') || '/chat/general',
+        callbackUrl: searchParams.get('callbackUrl') || '/chat',
         redirect: false // Handle redirect manually to show loading state
       });
 
