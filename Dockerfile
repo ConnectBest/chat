@@ -97,9 +97,11 @@ WORKDIR /app
 # Copy supervisor config
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# Create log directories
+# Create log directories and set proper ownership
 RUN mkdir -p /var/log/supervisor && \
-    chown -R appuser:appuser /var/log/supervisor
+    chown -R appuser:appuser /var/log/supervisor && \
+    chown -R appuser:appuser /app && \
+    chmod -R 755 /app
 
 # Expose ports
 EXPOSE 8080 5001
