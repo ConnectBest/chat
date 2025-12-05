@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
-const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api';
+// Use internal backend URL for server-side API route communication
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5001';
 
 export async function GET(
   request: Request,
@@ -10,11 +11,14 @@ export async function GET(
   const authHeader = request.headers.get('authorization');
 
   try {
-    const response = await fetch(`${BACKEND_API_URL}/chat/channels/${channelId}/messages`, {
+    console.log(`[Messages API] Fetching messages for channel ${channelId}, backend URL:`, BACKEND_URL);
+
+    const response = await fetch(`${BACKEND_URL}/api/chat/channels/${channelId}/messages`, {
       headers: authHeader ? { 'Authorization': authHeader } : {},
     });
 
     if (!response.ok) {
+      console.error('[Messages API] Fetch failed:', response.status);
       return NextResponse.json(
         { error: 'Failed to fetch messages' },
         { status: response.status }
@@ -22,9 +26,10 @@ export async function GET(
     }
 
     const data = await response.json();
+    console.log(`[Messages API] Successfully fetched messages for channel ${channelId}`);
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Error fetching messages:', error);
+    console.error('[Messages API] Error fetching messages:', error);
     return NextResponse.json(
       { error: 'Failed to connect to chat service' },
       { status: 500 }

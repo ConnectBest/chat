@@ -1,16 +1,20 @@
 import { NextResponse } from 'next/server';
 
-const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api';
+// Use internal backend URL for server-side API route communication
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5001';
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization');
-  
+
   try {
-    const response = await fetch(`${BACKEND_API_URL}/chat/channels`, {
+    console.log('[Channels API] Fetching channels, backend URL:', BACKEND_URL);
+
+    const response = await fetch(`${BACKEND_URL}/api/chat/channels`, {
       headers: authHeader ? { 'Authorization': authHeader } : {},
     });
 
     if (!response.ok) {
+      console.error('[Channels API] Fetch failed:', response.status);
       return NextResponse.json(
         { error: 'Failed to fetch channels' },
         { status: response.status }
@@ -18,9 +22,10 @@ export async function GET(request: Request) {
     }
 
     const data = await response.json();
+    console.log('[Channels API] Successfully fetched channels');
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Error fetching channels:', error);
+    console.error('[Channels API] Error fetching channels:', error);
     return NextResponse.json(
       { error: 'Failed to connect to chat service' },
       { status: 500 }
@@ -30,11 +35,13 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const authHeader = request.headers.get('authorization');
-  
+
   try {
     const body = await request.json().catch(() => ({}));
-    
-    const response = await fetch(`${BACKEND_API_URL}/chat/channels`, {
+
+    console.log('[Channels API] Creating channel, backend URL:', BACKEND_URL);
+
+    const response = await fetch(`${BACKEND_URL}/api/chat/channels`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -46,15 +53,17 @@ export async function POST(request: Request) {
     const data = await response.json();
 
     if (!response.ok) {
+      console.error('[Channels API] Create failed:', data);
       return NextResponse.json(
         { error: data.error || 'Failed to create channel' },
         { status: response.status }
       );
     }
 
+    console.log('[Channels API] Successfully created channel');
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Error creating channel:', error);
+    console.error('[Channels API] Error creating channel:', error);
     return NextResponse.json(
       { error: 'Failed to connect to chat service' },
       { status: 500 }

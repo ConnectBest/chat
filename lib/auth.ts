@@ -55,13 +55,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const { email, password } = parsedCredentials.data;
 
         try {
-          // Ensure we have a proper absolute URL for fetch
-          const backendUrl = BACKEND_API_URL.startsWith('http')
-            ? BACKEND_API_URL
-            : `https://chat.connect-best.com${BACKEND_API_URL}`;
-
-          // Call Flask backend directly - use the correct Flask endpoint
-          const response = await fetch(`${backendUrl}/login`, {
+          // Call our own NextJS API route which proxies to Flask backend
+          // This ensures proper routing through ALB and avoids conflicts
+          const response = await fetch('/api/auth/login', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -98,8 +94,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       // For Google OAuth, ensure user has accessToken
       if (account?.provider === "google" && user.email) {
         try {
-          // First, try to register user (might already exist, that's ok)
-          await fetch(`${BACKEND_API_URL}/register`, {
+          // First, try to register user through proper API route (might already exist, that's ok)
+          await fetch('/api/auth/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -110,11 +106,28 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             }),
           }).catch(() => {}); // Ignore errors - user might already exist
 
-          // Create a session token for Google OAuth users
-          // This will allow them to access the app while we work on proper backend integration
-          (user as any).accessToken = `google_oauth_${Date.now()}_${btoa(user.email || '')}`;
-          (user as any).role = 'user';
-          (user as any).id = user.email;
+          // Get a proper Flask JWT token for Google OAuth users
+          const loginResponse = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: user.email,
+              password: Math.random().toString(36), // This will fail, but we'll handle it
+              google_oauth: true // Flag to indicate this is Google OAuth
+            }),
+          });
+
+          if (loginResponse.ok) {
+            const loginData = await loginResponse.json();
+            (user as any).accessToken = loginData.token;
+            (user as any).role = loginData.user?.role || 'user';
+            (user as any).id = loginData.user?.id || user.email;
+          } else {
+            // Fallback: create a temporary token that can be validated later
+            (user as any).accessToken = `google_oauth_${Date.now()}_${btoa(user.email || '')}`;
+            (user as any).role = 'user';
+            (user as any).id = user.email;
+          }
 
         } catch (error) {
           console.error('Google OAuth error:', error);

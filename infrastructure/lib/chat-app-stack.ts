@@ -190,6 +190,9 @@ export class ChatAppStack extends cdk.Stack {
         NEXT_PUBLIC_API_URL: 'https://chat.connect-best.com/api',
         NEXT_PUBLIC_WEBSOCKET_URL: 'wss://v68x792yd5.execute-api.us-west-2.amazonaws.com/prod',
 
+        // Internal container-to-container communication
+        BACKEND_URL: 'http://localhost:5001', // Frontend calls backend internally
+
         // Google OAuth for NextAuth frontend
         NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '699045979125-v1tjnfluhmobrod8hogdbktqgi2vpv3t.apps.googleusercontent.com',
         GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '699045979125-v1tjnfluhmobrod8hogdbktqgi2vpv3t.apps.googleusercontent.com',

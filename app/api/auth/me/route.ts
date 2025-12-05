@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
-const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api';
+// Use internal backend URL for server-side API route communication
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5001';
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization');
@@ -9,20 +10,24 @@ export async function GET(request: Request) {
   }
 
   try {
-    const response = await fetch(`${BACKEND_API_URL}/auth/me`, {
+    console.log('[Me API] Fetching user info, backend URL:', BACKEND_URL);
+
+    const response = await fetch(`${BACKEND_URL}/api/auth/me`, {
       headers: {
         'Authorization': authHeader,
       },
     });
 
     if (!response.ok) {
+      console.error('[Me API] Fetch failed:', response.status);
       return NextResponse.json({ user: null }, { status: 200 });
     }
 
     const data = await response.json();
+    console.log('[Me API] Successfully fetched user info');
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Error fetching user:', error);
+    console.error('[Me API] Error fetching user:', error);
     return NextResponse.json({ user: null }, { status: 200 });
   }
 }

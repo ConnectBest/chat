@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
-const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api';
+// Use internal backend URL for server-side API route communication
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5001';
 
 export async function POST(
   request: Request,
@@ -12,7 +13,9 @@ export async function POST(
   try {
     const body = await request.json().catch(() => ({}));
 
-    const response = await fetch(`${BACKEND_API_URL}/chat/channels/${channelId}/messages/send`, {
+    console.log(`[Send Message API] Sending message to channel ${channelId}, backend URL:`, BACKEND_URL);
+
+    const response = await fetch(`${BACKEND_URL}/api/chat/channels/${channelId}/messages/send`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -24,15 +27,17 @@ export async function POST(
     const data = await response.json();
 
     if (!response.ok) {
+      console.error('[Send Message API] Send failed:', data);
       return NextResponse.json(
         { error: data.error || 'Failed to send message' },
         { status: response.status }
       );
     }
 
+    console.log(`[Send Message API] Successfully sent message to channel ${channelId}`);
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Error sending message:', error);
+    console.error('[Send Message API] Error sending message:', error);
     return NextResponse.json(
       { error: 'Failed to connect to chat service' },
       { status: 500 }
