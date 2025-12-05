@@ -36,7 +36,7 @@ docker run -p 8080:8080 connectbest-chat:dev
 ## 🗂 Project Structure
 
 The repository follows a monorepo-style layout, containing the frontend (Next.js), backend (Flask), and WebSocket service. Below is an overview of the main folders and their purpose:
-
+```
 chat/
 ├── app/                       # Next.js App Router (frontend UI + API routes)
 │   ├── (auth)/                # Authentication pages (login, register, forgot, verify-email)
@@ -76,7 +76,7 @@ chat/
 ├── tailwind.config.js         # TailwindCSS configuration
 ├── tsconfig.json              # TypeScript config
 └── README.md                  # Project root documentation
-
+```
 
 This structure enables full-stack development inside a single repository while maintaining clear separation between frontend, backend, and infrastructure layers.
 
