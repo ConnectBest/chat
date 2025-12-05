@@ -9,6 +9,8 @@ import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as route53Targets from 'aws-cdk-lib/aws-route53-targets';
 import * as certificateManager from 'aws-cdk-lib/aws-certificatemanager';
 import * as ses from 'aws-cdk-lib/aws-ses';
+import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import { Construct } from 'constructs';
 
 // Declare process for TypeScript compatibility
@@ -195,7 +197,8 @@ export class ChatAppStack extends cdk.Stack {
 
         // NextAuth Configuration for frontend
         NEXTAUTH_URL: 'https://chat.connect-best.com',
-        NEXTAUTH_SECRET: nextAuthSecret
+        NEXTAUTH_SECRET: nextAuthSecret,
+        NEXTAUTH_DEBUG: 'true' // Enable NextAuth debug logging
       }
     });
 
@@ -212,6 +215,7 @@ export class ChatAppStack extends cdk.Stack {
         // Core Flask settings
         FLASK_ENV: 'production',
         DEBUG: 'False',
+        LOG_LEVEL: 'DEBUG', // Enable detailed Flask logging
         HOST: '0.0.0.0',
         PORT: '5001',
         PYTHONUNBUFFERED: '1',
@@ -289,6 +293,21 @@ export class ChatAppStack extends cdk.Stack {
       'Allow HTTPS traffic from internet'
     );
 
+    // S3 Bucket for ALB Access Logs
+    const albLogsBucket = new s3.Bucket(this, 'AlbAccessLogsBucket', {
+      bucketName: `chat-app-alb-logs-${cdk.Stack.of(this).region}-${cdk.Stack.of(this).account}`,
+      lifecycleRules: [
+        {
+          id: 'DeleteOldLogs',
+          expiration: cdk.Duration.days(30), // Keep logs for 30 days
+          abortIncompleteMultipartUploadAfter: cdk.Duration.days(1)
+        }
+      ],
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      removalPolicy: cdk.RemovalPolicy.DESTROY // For development - change to RETAIN in production
+    });
+
     // Application Load Balancer
     const alb = new elbv2.ApplicationLoadBalancer(this, 'ChatAppALB', {
       vpc,
@@ -296,6 +315,9 @@ export class ChatAppStack extends cdk.Stack {
       loadBalancerName: 'chat-app-alb',
       securityGroup: albSecurityGroup
     });
+
+    // Enable ALB Access Logs
+    alb.logAccessLogs(albLogsBucket, 'access-logs');
 
     // Frontend Target Group (Next.js on port 3000)
     const frontendTargetGroup = new elbv2.ApplicationTargetGroup(this, 'FrontendTargetGroup', {
@@ -465,6 +487,142 @@ export class ChatAppStack extends cdk.Stack {
       scaleOutCooldown: cdk.Duration.minutes(5)
     });
 
+    // === OBSERVABILITY: CLOUDWATCH DASHBOARD ===
+
+    const dashboard = new cloudwatch.Dashboard(this, 'ChatAppDashboard', {
+      dashboardName: 'chat-app-observability',
+      defaultInterval: cdk.Duration.hours(1)
+    });
+
+    // ALB Metrics - HTTP Response Codes and Performance
+    const albHttpMetrics = new cloudwatch.GraphWidget({
+      title: 'ALB HTTP Response Status Codes',
+      width: 12,
+      height: 6,
+      left: [
+        new cloudwatch.Metric({
+          namespace: 'AWS/ApplicationELB',
+          metricName: 'HTTPCode_Target_2XX_Count',
+          dimensionsMap: {
+            LoadBalancer: alb.loadBalancerFullName
+          },
+          statistic: 'Sum',
+          label: '2xx Success'
+        }),
+        new cloudwatch.Metric({
+          namespace: 'AWS/ApplicationELB',
+          metricName: 'HTTPCode_Target_4XX_Count',
+          dimensionsMap: {
+            LoadBalancer: alb.loadBalancerFullName
+          },
+          statistic: 'Sum',
+          label: '4xx Client Error'
+        }),
+        new cloudwatch.Metric({
+          namespace: 'AWS/ApplicationELB',
+          metricName: 'HTTPCode_Target_5XX_Count',
+          dimensionsMap: {
+            LoadBalancer: alb.loadBalancerFullName
+          },
+          statistic: 'Sum',
+          label: '5xx Server Error'
+        })
+      ]
+    });
+
+    // ALB Performance Metrics
+    const albPerformanceMetrics = new cloudwatch.GraphWidget({
+      title: 'ALB Performance',
+      width: 12,
+      height: 6,
+      left: [
+        new cloudwatch.Metric({
+          namespace: 'AWS/ApplicationELB',
+          metricName: 'RequestCount',
+          dimensionsMap: {
+            LoadBalancer: alb.loadBalancerFullName
+          },
+          statistic: 'Sum',
+          label: 'Request Count'
+        })
+      ],
+      right: [
+        new cloudwatch.Metric({
+          namespace: 'AWS/ApplicationELB',
+          metricName: 'TargetResponseTime',
+          dimensionsMap: {
+            LoadBalancer: alb.loadBalancerFullName
+          },
+          statistic: 'Average',
+          label: 'Response Time (avg)'
+        })
+      ]
+    });
+
+    // Target Group Health
+    const targetGroupHealth = new cloudwatch.GraphWidget({
+      title: 'Target Group Health',
+      width: 12,
+      height: 6,
+      left: [
+        new cloudwatch.Metric({
+          namespace: 'AWS/ApplicationELB',
+          metricName: 'HealthyHostCount',
+          dimensionsMap: {
+            TargetGroup: frontendTargetGroup.targetGroupFullName
+          },
+          statistic: 'Average',
+          label: 'Frontend Healthy Hosts'
+        }),
+        new cloudwatch.Metric({
+          namespace: 'AWS/ApplicationELB',
+          metricName: 'HealthyHostCount',
+          dimensionsMap: {
+            TargetGroup: backendTargetGroup.targetGroupFullName
+          },
+          statistic: 'Average',
+          label: 'Backend Healthy Hosts'
+        })
+      ]
+    });
+
+    // ECS Service Metrics
+    const ecsMetrics = new cloudwatch.GraphWidget({
+      title: 'ECS Service Performance',
+      width: 12,
+      height: 6,
+      left: [
+        new cloudwatch.Metric({
+          namespace: 'AWS/ECS',
+          metricName: 'CPUUtilization',
+          dimensionsMap: {
+            ServiceName: service.serviceName,
+            ClusterName: cluster.clusterName
+          },
+          statistic: 'Average',
+          label: 'CPU Utilization %'
+        }),
+        new cloudwatch.Metric({
+          namespace: 'AWS/ECS',
+          metricName: 'MemoryUtilization',
+          dimensionsMap: {
+            ServiceName: service.serviceName,
+            ClusterName: cluster.clusterName
+          },
+          statistic: 'Average',
+          label: 'Memory Utilization %'
+        })
+      ]
+    });
+
+    // Add widgets to dashboard
+    dashboard.addWidgets(
+      albHttpMetrics,
+      albPerformanceMetrics,
+      targetGroupHealth,
+      ecsMetrics
+    );
+
     // === DEPLOYMENT OUTPUTS ===
 
     // Application URLs
@@ -492,6 +650,17 @@ export class ChatAppStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'EcsService', {
       value: service.serviceName,
       description: '⚙️ ECS service name'
+    });
+
+    // Observability Resources
+    new cdk.CfnOutput(this, 'CloudWatchDashboard', {
+      value: `https://${cdk.Stack.of(this).region}.console.aws.amazon.com/cloudwatch/home?region=${cdk.Stack.of(this).region}#dashboards:name=${dashboard.dashboardName}`,
+      description: '📊 CloudWatch Dashboard for HTTP metrics and performance'
+    });
+
+    new cdk.CfnOutput(this, 'ALBAccessLogsBucket', {
+      value: albLogsBucket.bucketName,
+      description: '📝 S3 bucket containing ALB access logs with HTTP status codes'
     });
 
     // Email Configuration

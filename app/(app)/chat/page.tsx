@@ -14,6 +14,16 @@ export default function ChatPage() {
   useEffect(() => {
     const fetchAndRedirect = async () => {
       try {
+        console.log('🔍 [Chat] Session status:', status, 'Session user:', !!session?.user);
+
+        // Don't proceed if session is still loading
+        if (status === 'loading') {
+          console.log('⏳ [Chat] Session still loading, waiting...');
+          return;
+        }
+
+        console.log('✅ [Chat] Session loaded, proceeding with auth check');
+
         // Give a small delay to ensure localStorage is set after redirect
         await new Promise(resolve => setTimeout(resolve, 100));
 
@@ -22,10 +32,28 @@ export default function ChatPage() {
         const sessionToken = (session?.user as any)?.accessToken;
         const token = localToken || sessionToken;
 
+        console.log('🔑 [Chat] Token sources:', {
+          hasLocal: !!localToken,
+          hasSession: !!sessionToken,
+          usingToken: !!token,
+          sessionStatus: status
+        });
+
+        // Only redirect to login if we're sure there's no valid session
         if (!token) {
-          router.push('/login');
+          // If status is 'unauthenticated', definitely redirect
+          // If status is 'authenticated' but no token, something's wrong - also redirect
+          if (status === 'unauthenticated' || (status === 'authenticated' && !sessionToken && !localToken)) {
+            console.log('❌ [Chat] No valid token found, redirecting to login');
+            router.push('/login');
+            return;
+          }
+          // If we get here, session might still be loading, so don't redirect yet
+          console.log('⏸️ [Chat] No token but session status unclear, waiting...');
           return;
         }
+
+        console.log('🚀 [Chat] Valid token found, fetching channels and DMs...');
 
         // Fetch both channels and DM conversations
         const [channelsRes, dmsRes] = await Promise.all([
@@ -37,7 +65,13 @@ export default function ChatPage() {
           })
         ]);
 
+        console.log('📡 [Chat] API responses:', {
+          channels: { status: channelsRes.status, ok: channelsRes.ok },
+          dms: { status: dmsRes.status, ok: dmsRes.ok }
+        });
+
         if (channelsRes.status === 401 || dmsRes.status === 401) {
+          console.log('🚫 [Chat] Got 401, token invalid - clearing and redirecting');
           localStorage.removeItem('token');
           router.push('/login');
           return;
@@ -74,10 +108,14 @@ export default function ChatPage() {
         if (allConversations.length > 0) {
           const mostRecent = allConversations[0];
           if (mostRecent.type === 'channel') {
+            console.log('🔀 [Chat] Redirecting to most recent channel:', mostRecent.id);
             router.push(`/chat/${mostRecent.id}`);
           } else {
+            console.log('🔀 [Chat] Redirecting to most recent DM:', mostRecent.id);
             router.push(`/chat/dm/${mostRecent.id}`);
           }
+        } else {
+          console.log('ℹ️ [Chat] No conversations found, staying on main chat page');
         }
       } catch (error) {
         console.error('Error fetching conversations:', error);
@@ -89,12 +127,14 @@ export default function ChatPage() {
     fetchAndRedirect();
   }, [router, session, status]);
 
-  if (loading) {
+  if (status === 'loading' || loading) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-400"></div>
-          <p className="mt-4 text-gray-400">Loading channels...</p>
+          <p className="mt-4 text-gray-400">
+            {status === 'loading' ? 'Loading session...' : 'Loading channels...'}
+          </p>
         </div>
       </div>
     );

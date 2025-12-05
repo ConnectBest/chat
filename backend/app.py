@@ -17,9 +17,8 @@ import os
 import certifi
 from datetime import datetime
 
-# Configure logging
+# Configure logging - level will be set in create_app() after config is loaded
 logging.basicConfig(
-    level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -40,7 +39,11 @@ def create_app():
     # Load configuration
     config = get_config()
     app.config.from_object(config)
-    
+
+    # Set logging level from configuration
+    logging.getLogger().setLevel(config.get_log_level())
+    logger.info(f"Logging level set to: {config.LOG_LEVEL}")
+
     # Configure upload folder
     STATIC_FOLDER = os.path.join(os.path.dirname(__file__), 'static')
     app.config['STATIC_FOLDER'] = STATIC_FOLDER
@@ -184,7 +187,42 @@ def create_app():
             else:
                 logger.error("URI type: Invalid format")
         raise
-    
+
+    # HTTP Request/Response Logging Middleware
+    @app.before_request
+    def log_request_info():
+        if config.LOG_LEVEL == 'DEBUG':
+            logger.debug(f"📥 HTTP Request: {request.method} {request.path} from {request.remote_addr}")
+            if request.method in ['POST', 'PUT', 'PATCH'] and request.content_type == 'application/json':
+                try:
+                    # Log request body for debugging (be careful with sensitive data)
+                    body = request.get_json()
+                    if body and 'password' not in str(body).lower():  # Don't log passwords
+                        logger.debug(f"📥 Request body: {body}")
+                except Exception:
+                    pass  # Ignore JSON parsing errors
+
+    @app.after_request
+    def log_response_info(response):
+        # Always log response status for observability
+        status_emoji = "✅" if response.status_code < 300 else "⚠️" if response.status_code < 500 else "❌"
+        logger.info(f"📤 HTTP Response: {request.method} {request.path} -> {response.status_code} {status_emoji}")
+
+        # Log more details in debug mode
+        if config.LOG_LEVEL == 'DEBUG':
+            logger.debug(f"📤 Response headers: {dict(response.headers)}")
+            if response.content_type == 'application/json' and hasattr(response, 'data'):
+                try:
+                    # Log response body in debug mode (truncate if too long)
+                    data_str = response.get_data(as_text=True)
+                    if len(data_str) > 500:
+                        data_str = data_str[:500] + "... (truncated)"
+                    logger.debug(f"📤 Response body: {data_str}")
+                except Exception:
+                    pass  # Ignore errors
+
+        return response
+
     # Initialize Flask-RESTX API with Swagger documentation
     api = Api(
         app,

@@ -79,6 +79,20 @@ class Config:
     # Frontend URL (for OAuth redirects)
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:8080')
 
+    # Logging Configuration
+    LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO').upper()
+
+    def get_log_level(self):
+        """Convert string log level to logging constant"""
+        log_levels = {
+            'DEBUG': logging.DEBUG,
+            'INFO': logging.INFO,
+            'WARNING': logging.WARNING,
+            'ERROR': logging.ERROR,
+            'CRITICAL': logging.CRITICAL
+        }
+        return log_levels.get(self.LOG_LEVEL, logging.INFO)
+
 
 class DevelopmentConfig(Config):
     """Development environment configuration"""
