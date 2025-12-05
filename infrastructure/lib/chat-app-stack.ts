@@ -49,7 +49,7 @@ export class ChatAppStack extends cdk.Stack {
     const cluster = new ecs.Cluster(this, 'ChatAppCluster', {
       vpc,
       clusterName: 'chat-app-cluster',
-      containerInsights: true
+      containerInsightsV2: true // Updated from deprecated containerInsights
     });
 
     // CloudWatch Log Group
@@ -325,11 +325,19 @@ export class ChatAppStack extends cdk.Stack {
     });
 
     // Add HTTPS listener rules with correct priorities
-    // Priority 50: Route /api/auth/* to frontend (NextAuth)
+    // Priority 10: Route NextAuth routes to frontend (highest priority)
     httpsListener.addAction('NextAuthRoute', {
-      priority: 50,
+      priority: 10,
       conditions: [
-        elbv2.ListenerCondition.pathPatterns(['/api/auth/*'])
+        elbv2.ListenerCondition.pathPatterns([
+          '/api/auth/*',           // All NextAuth routes
+          '/api/auth/signin*',     // Sign in page
+          '/api/auth/signout*',    // Sign out
+          '/api/auth/session*',    // Session check
+          '/api/auth/csrf*',       // CSRF token
+          '/api/auth/providers*',  // Available providers
+          '/api/auth/callback/*'   // OAuth callbacks
+        ])
       ],
       action: elbv2.ListenerAction.forward([frontendTargetGroup])
     });
@@ -341,22 +349,6 @@ export class ChatAppStack extends cdk.Stack {
         elbv2.ListenerCondition.pathPatterns(['/api/*'])
       ],
       action: elbv2.ListenerAction.forward([backendTargetGroup])
-    });
-
-    // Updated outputs for HTTPS with custom domain
-    new cdk.CfnOutput(this, 'ApplicationURL', {
-      value: `https://chat.connect-best.com`,
-      description: 'Application URL (HTTPS with custom domain)'
-    });
-
-    new cdk.CfnOutput(this, 'ApplicationHTTPSURL', {
-      value: `https://chat.connect-best.com`,
-      description: 'Application HTTPS URL with SSL certificate'
-    });
-
-    new cdk.CfnOutput(this, 'LoadBalancerDNSForDNSRecord', {
-      value: alb.loadBalancerDnsName,
-      description: 'ALB DNS name for chat.connect-best.com CNAME record'
     });
 
     // Security Group for ECS Tasks
@@ -389,7 +381,12 @@ export class ChatAppStack extends cdk.Stack {
       assignPublicIp: true,
       healthCheckGracePeriod: cdk.Duration.minutes(5),
       enableExecuteCommand: true, // For debugging
-      securityGroups: [ecsSecurityGroup]
+      securityGroups: [ecsSecurityGroup],
+      // Deployment configuration to avoid warning and ensure proper rolling updates
+      deploymentConfiguration: {
+        minimumHealthyPercent: 100,  // Keep all tasks running during deployment
+        maximumPercent: 200          // Allow doubling during deployment for zero-downtime
+      }
     });
 
     // Attach service containers to their respective target groups
@@ -415,51 +412,44 @@ export class ChatAppStack extends cdk.Stack {
       scaleOutCooldown: cdk.Duration.minutes(5)
     });
 
-    // Outputs
-    new cdk.CfnOutput(this, 'LoadBalancerDNS', {
-      value: alb.loadBalancerDnsName,
-      description: 'DNS name of the load balancer'
-    });
+    // === DEPLOYMENT OUTPUTS ===
 
-    new cdk.CfnOutput(this, 'ClusterName', {
-      value: cluster.clusterName,
-      description: 'Name of the ECS cluster'
-    });
-
-    new cdk.CfnOutput(this, 'ServiceName', {
-      value: service.serviceName,
-      description: 'Name of the ECS service'
+    // Application URLs
+    new cdk.CfnOutput(this, 'ApplicationURL', {
+      value: 'https://chat.connect-best.com',
+      description: '🌐 Main application URL'
     });
 
     new cdk.CfnOutput(this, 'HealthCheckURL', {
-      value: `https://chat.connect-best.com/api/health`,
-      description: 'Health check URL for the application'
+      value: 'https://chat.connect-best.com/api/health',
+      description: '🏥 Application health check endpoint'
     });
 
-    // SES Configuration Outputs
+    // Infrastructure Details
+    new cdk.CfnOutput(this, 'LoadBalancerDNS', {
+      value: alb.loadBalancerDnsName,
+      description: '⚖️ Load balancer DNS (for CNAME setup)'
+    });
+
+    new cdk.CfnOutput(this, 'EcsCluster', {
+      value: cluster.clusterName,
+      description: '🚢 ECS cluster name'
+    });
+
+    new cdk.CfnOutput(this, 'EcsService', {
+      value: service.serviceName,
+      description: '⚙️ ECS service name'
+    });
+
+    // Email Configuration
     new cdk.CfnOutput(this, 'SesSmtpEndpoint', {
       value: `email-smtp.${this.region}.amazonaws.com`,
-      description: 'SES SMTP endpoint for email configuration'
+      description: '📧 SES SMTP server'
     });
 
-    new cdk.CfnOutput(this, 'SesSmtpUsername', {
-      value: sesAccessKey.accessKeyId,
-      description: 'SES SMTP username (Access Key ID)'
-    });
-
-    new cdk.CfnOutput(this, 'SesSmtpPasswordSecret', {
-      value: sesAccessKey.secretAccessKey.unsafeUnwrap(),
-      description: '⚠️ SES SMTP password - store securely and update .env file'
-    });
-
-    new cdk.CfnOutput(this, 'SesEmailIdentity', {
-      value: 'noreply@connect-best.com',
-      description: 'Verified email identity for sending emails'
-    });
-
-    new cdk.CfnOutput(this, 'SesConfigurationInstructions', {
-      value: `Update infrastructure/.env with: EMAIL_USER="${sesAccessKey.accessKeyId}" EMAIL_PASSWORD="<get-from-above>"`,
-      description: 'SES configuration instructions for .env file'
+    new cdk.CfnOutput(this, 'SesSmtpCredentials', {
+      value: `EMAIL_USER="${sesAccessKey.accessKeyId}" EMAIL_PASSWORD="[Get from AWS Console]"`,
+      description: '🔐 SES credentials for .env (⚠️ Password not shown for security)'
     });
   }
 }

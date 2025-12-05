@@ -59,8 +59,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             ? BACKEND_API_URL
             : `https://chat.connect-best.com${BACKEND_API_URL}`;
 
-          // Call Flask backend directly
-          const response = await fetch(`${backendUrl}/auth/login`, {
+          // Call Flask backend directly - use the correct Flask endpoint
+          const response = await fetch(`${backendUrl}/login`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -98,7 +98,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (account?.provider === "google" && user.email) {
         // Optional: Register Google users with Flask backend
         try {
-          await fetch(`${BACKEND_API_URL}/auth/register`, {
+          await fetch(`${BACKEND_API_URL}/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
