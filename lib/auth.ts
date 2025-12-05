@@ -9,6 +9,17 @@ const BACKEND_API_URL = process.env.NODE_ENV === 'production'
   ? 'https://chat.connect-best.com/api'
   : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api');
 
+// Helper function to construct absolute URLs for server-side fetch calls
+const getAbsoluteUrl = (path: string): string => {
+  // Get the base URL from NEXTAUTH_URL or construct from environment
+  const baseUrl = process.env.NEXTAUTH_URL ||
+    (process.env.NODE_ENV === 'production'
+      ? 'https://chat.connect-best.com'
+      : 'http://localhost:3000');
+
+  return `${baseUrl}${path}`;
+};
+
 // Extended user type with role and phone
 export interface ExtendedUser {
   id: string;
@@ -57,7 +68,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         try {
           // Call our own NextJS API route which proxies to Flask backend
           // This ensures proper routing through ALB and avoids conflicts
-          const response = await fetch('/api/auth/login', {
+          // Use absolute URL for server-side fetch
+          const response = await fetch(getAbsoluteUrl('/api/auth/login'), {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -95,7 +107,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (account?.provider === "google" && user.email) {
         try {
           // First, try to register user through proper API route (might already exist, that's ok)
-          await fetch('/api/auth/register', {
+          // Use absolute URL for server-side fetch
+          await fetch(getAbsoluteUrl('/api/auth/register'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -107,7 +120,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           }).catch(() => {}); // Ignore errors - user might already exist
 
           // Get a proper Flask JWT token for Google OAuth users
-          const loginResponse = await fetch('/api/auth/login', {
+          // Use absolute URL for server-side fetch
+          const loginResponse = await fetch(getAbsoluteUrl('/api/auth/login'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
