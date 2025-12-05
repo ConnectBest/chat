@@ -47,7 +47,8 @@
       "Bash(while read name date)",
       "Bash(do echo \"=== $name ===\")",
       "Bash(done)",
-      "Bash(gh secret set:*)"
+      "Bash(gh secret set:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": []

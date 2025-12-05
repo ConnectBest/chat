@@ -49,7 +49,7 @@ export class ChatAppStack extends cdk.Stack {
     const cluster = new ecs.Cluster(this, 'ChatAppCluster', {
       vpc,
       clusterName: 'chat-app-cluster',
-      containerInsightsV2: true // Updated from deprecated containerInsights
+      containerInsights: true // Enable container insights
     });
 
     // CloudWatch Log Group
@@ -381,13 +381,15 @@ export class ChatAppStack extends cdk.Stack {
       assignPublicIp: true,
       healthCheckGracePeriod: cdk.Duration.minutes(5),
       enableExecuteCommand: true, // For debugging
-      securityGroups: [ecsSecurityGroup],
-      // Deployment configuration to avoid warning and ensure proper rolling updates
-      deploymentConfiguration: {
-        minimumHealthyPercent: 100,  // Keep all tasks running during deployment
-        maximumPercent: 200          // Allow doubling during deployment for zero-downtime
-      }
+      securityGroups: [ecsSecurityGroup]
     });
+
+    // Configure deployment for zero-downtime rolling updates
+    const cfnService = service.node.defaultChild as ecs.CfnService;
+    cfnService.deploymentConfiguration = {
+      minimumHealthyPercent: 100,  // Keep all tasks running during deployment
+      maximumPercent: 200          // Allow doubling during deployment for zero-downtime
+    };
 
     // Attach service containers to their respective target groups
     frontendTargetGroup.addTarget(service.loadBalancerTarget({
