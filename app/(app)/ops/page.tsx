@@ -34,49 +34,133 @@ export default function OpsPage() {
   }, [autoRefresh]);
 
   async function fetchData() {
-    // Mock health data
-    setHealth({
-      status: 'healthy',
-      uptime: 99.99,
-      version: '1.0.0',
-      timestamp: new Date().toISOString()
-    });
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.warn('No auth token found, cannot fetch metrics');
+        return;
+      }
 
-    // Mock metrics
-    setMetrics({
-      activeConnections: Math.floor(Math.random() * 100) + 50,
-      totalMessages: Math.floor(Math.random() * 10000) + 5000,
-      averageLatency: Math.floor(Math.random() * 50) + 20,
-      errorRate: Math.random() * 2,
-      cpuUsage: Math.floor(Math.random() * 30) + 20,
-      memoryUsage: Math.floor(Math.random() * 40) + 40
-    });
+      // Fetch real health status
+      try {
+        const healthResponse = await fetch('/api/metrics/health');
+        if (healthResponse.ok) {
+          const healthData = await healthResponse.json();
+          setHealth({
+            status: healthData.status,
+            uptime: healthData.uptime,
+            version: healthData.version,
+            timestamp: healthData.timestamp
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch health status:', error);
+      }
 
-    // Mock time-series data
-    const now = Date.now();
-    setLatencyData(prev => {
-      const newData = [...prev, {
-        time: new Date(now).toLocaleTimeString(),
-        latency: Math.floor(Math.random() * 50) + 20
-      }];
-      return newData.slice(-20); // Keep last 20 points
-    });
+      // Fetch real system metrics
+      try {
+        const metricsResponse = await fetch('/api/metrics/system', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (metricsResponse.ok) {
+          const metricsData = await metricsResponse.json();
+          setMetrics({
+            activeConnections: metricsData.activeConnections,
+            totalMessages: metricsData.totalMessages,
+            averageLatency: metricsData.averageLatency,
+            errorRate: metricsData.errorRate,
+            cpuUsage: metricsData.cpuUsage,
+            memoryUsage: metricsData.memoryUsage
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch system metrics:', error);
+      }
 
-    setConnectionData(prev => {
-      const newData = [...prev, {
-        time: new Date(now).toLocaleTimeString(),
-        connections: Math.floor(Math.random() * 100) + 50
-      }];
-      return newData.slice(-20);
-    });
+      // Fetch real time-series data
+      const now = Date.now();
+      const timeLabel = new Date(now).toLocaleTimeString();
 
-    setErrorData(prev => {
-      const newData = [...prev, {
-        time: new Date(now).toLocaleTimeString(),
-        errors: Math.floor(Math.random() * 5)
-      }];
-      return newData.slice(-20);
-    });
+      // Fetch latency time series
+      try {
+        const latencyResponse = await fetch('/api/metrics/timeseries/latency?period=30&points=1', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (latencyResponse.ok) {
+          const latencyData = await latencyResponse.json();
+          const latencyValue = latencyData.length > 0 ? latencyData[0].value : 0;
+          setLatencyData(prev => {
+            const newData = [...prev, {
+              time: timeLabel,
+              latency: latencyValue
+            }];
+            return newData.slice(-20); // Keep last 20 points
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch latency data:', error);
+      }
+
+      // Fetch connections time series
+      try {
+        const connectionsResponse = await fetch('/api/metrics/timeseries/connections?period=30&points=1', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (connectionsResponse.ok) {
+          const connectionsData = await connectionsResponse.json();
+          const connectionsValue = connectionsData.length > 0 ? connectionsData[0].value : 0;
+          setConnectionData(prev => {
+            const newData = [...prev, {
+              time: timeLabel,
+              connections: connectionsValue
+            }];
+            return newData.slice(-20);
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch connections data:', error);
+      }
+
+      // Fetch errors time series
+      try {
+        const errorsResponse = await fetch('/api/metrics/timeseries/errors?period=30&points=1', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (errorsResponse.ok) {
+          const errorsData = await errorsResponse.json();
+          const errorsValue = errorsData.length > 0 ? errorsData[0].value : 0;
+          setErrorData(prev => {
+            const newData = [...prev, {
+              time: timeLabel,
+              errors: errorsValue
+            }];
+            return newData.slice(-20);
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch errors data:', error);
+      }
+
+    } catch (error) {
+      console.error('Failed to fetch ops dashboard data:', error);
+
+      // Fallback to mock data if API fails
+      setHealth({
+        status: 'degraded',
+        uptime: 95.0,
+        version: '1.0.0',
+        timestamp: new Date().toISOString()
+      });
+
+      setMetrics({
+        activeConnections: 3,
+        totalMessages: 1000,
+        averageLatency: 50,
+        errorRate: 1.0,
+        cpuUsage: 30,
+        memoryUsage: 50
+      });
+    }
   }
 
   const statusColor = health?.status === 'healthy' ? 'bg-green-500' : 

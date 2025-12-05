@@ -197,6 +197,9 @@ jobs:
           EMAIL_FROM: michael_l_kennedy@me.com
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+          ECS_CLUSTER_NAME: ${{ env.ECS_CLUSTER }}
+          ECS_SERVICE_NAME: ${{ env.ECS_SERVICE }}
         run: |
           cd infrastructure
           npm config set registry https://registry.npmjs.org/

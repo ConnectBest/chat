@@ -212,13 +212,15 @@ def create_app():
     from routes.messages import messages_ns
     from routes.two_factor import two_factor_ns
     from routes.direct_messages import dm_ns
-    
+    from routes.metrics import metrics_ns
+
     api.add_namespace(auth_ns, path='/auth')
     api.add_namespace(users_ns, path='/users')
     api.add_namespace(channels_ns, path='/chat/channels')
     api.add_namespace(messages_ns, path='/chat')
     api.add_namespace(two_factor_ns, path='/2fa')
     api.add_namespace(dm_ns, path='/dm')
+    api.add_namespace(metrics_ns, path='/metrics')
     
     # Register upload blueprint
     from routes.upload import upload_bp

@@ -84,6 +84,29 @@ export class ChatAppStack extends cdk.Stack {
       resources: ['*']
     }));
 
+    // Create task role with CloudWatch permissions for metrics collection
+    const taskRole = new iam.Role(this, 'ChatAppTaskRole', {
+      assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
+      description: 'Task role for Chat App ECS containers',
+    });
+
+    // Add CloudWatch permissions for metrics and ECS permissions for service discovery
+    taskRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        // CloudWatch metrics
+        'cloudwatch:GetMetricStatistics',
+        'cloudwatch:ListMetrics',
+        'cloudwatch:GetMetricData',
+        // ECS permissions for service status
+        'ecs:DescribeServices',
+        'ecs:DescribeTasks',
+        'ecs:ListTasks',
+        'ecs:DescribeClusters'
+      ],
+      resources: ['*']
+    }));
+
     // Create IAM User for SES SMTP credentials
     const sesSmtpUser = new iam.User(this, 'SesSmtpUser', {
       userName: 'connectbest-ses-smtp-user'
@@ -109,7 +132,8 @@ export class ChatAppStack extends cdk.Stack {
       memoryLimitMiB: 2048,  // Increased for two containers
       cpu: 1024,             // Increased for two containers
       family: 'chat-app',
-      executionRole: executionRole
+      executionRole: executionRole,
+      taskRole: taskRole
     });
 
     // SECURITY: Get all sensitive values from environment variables only
@@ -217,7 +241,12 @@ export class ChatAppStack extends cdk.Stack {
         UPLOAD_FOLDER: 'static/uploads',
 
         // WebSocket URL (exact match from Lightsail)
-        NEXT_PUBLIC_WEBSOCKET_URL: 'wss://v68x792yd5.execute-api.us-west-2.amazonaws.com/prod'
+        NEXT_PUBLIC_WEBSOCKET_URL: 'wss://v68x792yd5.execute-api.us-west-2.amazonaws.com/prod',
+
+        // AWS Configuration for CloudWatch metrics
+        AWS_REGION: process.env.AWS_REGION || 'us-west-2',
+        ECS_CLUSTER_NAME: process.env.ECS_CLUSTER_NAME || 'chat-app-cluster',
+        ECS_SERVICE_NAME: process.env.ECS_SERVICE_NAME || 'chat-app-service'
       }
     });
 
