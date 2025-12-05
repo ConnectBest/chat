@@ -12,7 +12,15 @@ import { Avatar } from '@/components/ui/Avatar';
 import { UserProfilePopover } from '@/components/ui/UserProfilePopover';
 
 interface Channel { id: string; name: string; createdAt: string; }
-interface DirectMessage { userId: string; userName: string; userAvatar?: string; status: 'online' | 'away' | 'offline'; lastMessage?: string; }
+interface DirectMessage {
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  status: 'online' | 'away' | 'offline';
+  lastMessage?: string;
+  unreadCount?: number;
+  lastMessageAt?: string;
+}
 
 export function ChannelSidebar() {
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -28,6 +36,12 @@ export function ChannelSidebar() {
   const pathname = usePathname();
 
   useEffect(() => {
+    // Initialize DMs from localStorage on mount
+    const storedDMs = JSON.parse(localStorage.getItem('activeDMs') || '[]');
+    if (storedDMs.length > 0) {
+      setDirectMessages(storedDMs);
+    }
+
     const fetchChannels = async () => {
       try {
         const token = localStorage.getItem('token');
@@ -68,19 +82,54 @@ export function ChannelSidebar() {
         console.log('Fetching DM conversations with token:', token.substring(0, 20) + '...');
         const data = await api.listDMConversations(token);
         console.log('DM conversations response:', data);
-        const conversations = data.conversations || [];
-        setDirectMessages(conversations.map((conv: any) => ({
-          userId: conv.user_id,
-          userName: conv.user_name,
-          userAvatar: conv.user_avatar,
-          status: conv.user_status || 'offline',
-          lastMessage: conv.last_message,
-          unreadCount: conv.unreadCount || 0
-        })));
+        const apiConversations = data.conversations || [];
+
+        // Get locally stored DMs (from when user clicked on users)
+        const storedDMs = JSON.parse(localStorage.getItem('activeDMs') || '[]');
+
+        // Merge API conversations with stored DMs, API takes precedence
+        const allDMs = [...storedDMs];
+
+        apiConversations.forEach((conv: any) => {
+          const existingIndex = allDMs.findIndex(dm => dm.userId === conv.user_id);
+          const dmData = {
+            userId: conv.user_id,
+            userName: conv.user_name,
+            userAvatar: conv.user_avatar,
+            status: conv.user_status || 'offline',
+            lastMessage: conv.last_message,
+            unreadCount: conv.unreadCount || 0,
+            lastMessageAt: conv.last_message_at
+          };
+
+          if (existingIndex >= 0) {
+            // Update existing DM with API data
+            allDMs[existingIndex] = dmData;
+          } else {
+            // Add new DM from API
+            allDMs.push(dmData);
+          }
+        });
+
+        // Sort by last message time, putting DMs with recent activity first
+        allDMs.sort((a, b) => {
+          const aTime = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+          const bTime = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+          return bTime - aTime;
+        });
+
+        setDirectMessages(allDMs);
+
+        // Update localStorage with merged DMs
+        localStorage.setItem('activeDMs', JSON.stringify(allDMs));
+
       } catch (error: any) {
         console.error('Error fetching DM conversations:', error);
         console.error('Error details:', error.response?.data);
-        setDirectMessages([]);
+
+        // Fallback to stored DMs if API fails
+        const storedDMs = JSON.parse(localStorage.getItem('activeDMs') || '[]');
+        setDirectMessages(storedDMs);
       }
     };
 
@@ -190,9 +239,27 @@ export function ChannelSidebar() {
   function handleSelectUser(user: { id: string; name: string; email: string; status: 'online' | 'away' | 'offline'; avatar?: string }) {
     // Check if DM already exists
     const existingDm = directMessages.find(dm => dm.userId === user.id);
+
+    const dmData = {
+      userId: user.id,
+      userName: user.name,
+      userAvatar: user.avatar,
+      status: user.status,
+      lastMessage: existingDm?.lastMessage,
+      unreadCount: existingDm?.unreadCount || 0
+    };
+
     if (!existingDm) {
-      setDirectMessages(prev => [...prev, { userId: user.id, userName: user.name, userAvatar: user.avatar, status: user.status }]);
+      // Add to state
+      setDirectMessages(prev => [...prev, dmData]);
+
+      // Also store in localStorage so it persists
+      const storedDMs = JSON.parse(localStorage.getItem('activeDMs') || '[]');
+      const updatedDMs = storedDMs.filter((dm: any) => dm.userId !== user.id);
+      updatedDMs.push(dmData);
+      localStorage.setItem('activeDMs', JSON.stringify(updatedDMs));
     }
+
     setUserDirOpen(false);
     router.push(`/chat/dm/${user.id}`);
     setMobileMenuOpen(false);
