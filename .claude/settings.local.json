@@ -50,7 +50,8 @@
       "Bash(gh secret set:*)",
       "Bash(npx tsc:*)",
       "Bash(tree:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(npx cdk:*)"
     ],
     "deny": [],
     "ask": []

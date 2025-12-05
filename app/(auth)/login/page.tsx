@@ -96,18 +96,21 @@ function LoginForm() {
   async function handleGoogleSignIn() {
     setLoading(true);
     try {
-      // Get OAuth URL from backend
-      const response = await fetch(getApiUrl('auth/google'));
-      const data = await response.json();
+      // Use NextAuth.js signIn function for Google OAuth
+      const result = await signIn('google', {
+        callbackUrl: searchParams.get('callbackUrl') || '/chat/general',
+        redirect: false // Handle redirect manually to show loading state
+      });
 
-      if (data.auth_url) {
-        // Redirect to Google OAuth
-        window.location.href = data.auth_url;
-      } else {
-        setError('Failed to get Google sign-in URL');
+      if (result?.error) {
+        setError('Google sign-in failed');
         setLoading(false);
+      } else if (result?.url) {
+        // NextAuth.js will handle the redirect to Google OAuth
+        window.location.href = result.url;
       }
     } catch (err) {
+      console.error('Google sign-in error:', err);
       setError('Google sign-in failed');
       setLoading(false);
     }

@@ -15,6 +15,10 @@ export class ChatAppStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
+    // Image tag parameters - allow dynamic image tags for deployments
+    const frontendImageTag = this.node.tryGetContext('frontendImageTag') || 'latest';
+    const backendImageTag = this.node.tryGetContext('backendImageTag') || 'latest';
+
     // VPC with public and private subnets across 2 AZs
     const vpc = new ec2.Vpc(this, 'ChatAppVpc', {
       maxAzs: 2,
@@ -136,7 +140,7 @@ export class ChatAppStack extends cdk.Stack {
 
     // Frontend Container (Next.js)
     const frontendContainer = taskDefinition.addContainer('FrontendContainer', {
-      image: ecs.ContainerImage.fromEcrRepository(frontendRepo, 'latest'),
+      image: ecs.ContainerImage.fromEcrRepository(frontendRepo, frontendImageTag),
       memoryLimitMiB: 512,
       cpu: 256,
       logging: ecs.LogDrivers.awsLogs({
@@ -155,6 +159,8 @@ export class ChatAppStack extends cdk.Stack {
 
         // Google OAuth for NextAuth frontend
         NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '699045979125-v1tjnfluhmobrod8hogdbktqgi2vpv3t.apps.googleusercontent.com',
+        GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '699045979125-v1tjnfluhmobrod8hogdbktqgi2vpv3t.apps.googleusercontent.com',
+        GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || 'PLACEHOLDER_SECRET',
 
         // NextAuth Configuration for frontend
         NEXTAUTH_URL: 'https://chat.connect-best.com',
@@ -164,7 +170,7 @@ export class ChatAppStack extends cdk.Stack {
 
     // Backend Container (Flask)
     const backendContainer = taskDefinition.addContainer('BackendContainer', {
-      image: ecs.ContainerImage.fromEcrRepository(backendRepo, 'latest'),
+      image: ecs.ContainerImage.fromEcrRepository(backendRepo, backendImageTag),
       memoryLimitMiB: 1536,
       cpu: 768,
       logging: ecs.LogDrivers.awsLogs({
@@ -446,6 +452,12 @@ export class ChatAppStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'SesSmtpCredentials', {
       value: `EMAIL_USER="${sesAccessKey.accessKeyId}" EMAIL_PASSWORD="[Get from AWS Console]"`,
       description: '🔐 SES credentials for .env (⚠️ Password not shown for security)'
+    });
+
+    // Image tags being deployed
+    new cdk.CfnOutput(this, 'DeployedImageTags', {
+      value: `Frontend: ${frontendImageTag}, Backend: ${backendImageTag}`,
+      description: '🏷️ Container image tags deployed in this stack'
     });
   }
 }

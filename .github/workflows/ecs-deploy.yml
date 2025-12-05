@@ -205,7 +205,10 @@ jobs:
           rm -rf lib/*.js lib/*.d.ts
           npm install
           npm run build
-          npx cdk deploy --require-approval never --no-version-reporting
+          # Deploy with dynamic image tags from the build step
+          npx cdk deploy --require-approval never --no-version-reporting \
+            --context frontendImageTag=${{ env.IMAGE_TAG_SHA }} \
+            --context backendImageTag=${{ env.IMAGE_TAG_SHA }}
 
       - name: Wait for deployment to complete
         run: |
