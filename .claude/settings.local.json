@@ -51,7 +51,9 @@
       "Bash(npx tsc:*)",
       "Bash(tree:*)",
       "Bash(ls:*)",
-      "Bash(npx cdk:*)"
+      "Bash(npx cdk:*)",
+      "Bash(npm config list:*)",
+      "Bash(npm cache clean:*)"
     ],
     "deny": [],
     "ask": []

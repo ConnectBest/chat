@@ -72,24 +72,32 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
 
 interface ReactionBarProps {
   reactions: { emoji: string; count: number; users: string[] }[];
+  currentUserId?: string;
   onReact: (emoji: string) => void;
   onShowPicker: () => void;
 }
 
-export function ReactionBar({ reactions, onReact, onShowPicker }: ReactionBarProps) {
+export function ReactionBar({ reactions, currentUserId, onReact, onShowPicker }: ReactionBarProps) {
   return (
     <div className="flex flex-wrap gap-1 mt-1">
-      {reactions.map(r => (
-        <button
-          key={r.emoji}
-          onClick={() => onReact(r.emoji)}
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/10 hover:bg-white/20 text-xs transition"
-          title={r.users.join(', ')}
-        >
-          <span>{r.emoji}</span>
-          <span className="text-white/70">{r.count}</span>
-        </button>
-      ))}
+      {reactions.map(r => {
+        const isCurrentUserReacted = currentUserId && r.users.includes(currentUserId);
+        return (
+          <button
+            key={r.emoji}
+            onClick={() => onReact(r.emoji)}
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition ${
+              isCurrentUserReacted
+                ? 'bg-brand-500/30 border border-brand-400/50 text-brand-300'
+                : 'bg-white/10 hover:bg-white/20'
+            }`}
+            title={r.users.join(', ')}
+          >
+            <span>{r.emoji}</span>
+            <span className="text-white/70">{r.count}</span>
+          </button>
+        );
+      })}
       <button
         onClick={onShowPicker}
         className="inline-flex items-center px-2 py-0.5 rounded-full bg-white/5 hover:bg-white/10 text-xs transition"

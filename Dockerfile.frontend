@@ -26,6 +26,7 @@ COPY --from=deps /app/node_modules ./node_modules
 
 # Copy only frontend-related files
 COPY package*.json ./
+COPY .npmrc* ./
 COPY tsconfig.json ./
 COPY next.config.js* ./
 COPY postcss.config.js* ./
@@ -46,6 +47,9 @@ ARG CACHEBUST=1
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL}
 ENV NEXT_PUBLIC_WEBSOCKET_URL=${NEXT_PUBLIC_WEBSOCKET_URL}
+
+# Set npm registry to public registry to avoid company/internal registry issues
+RUN npm config set registry https://registry.npmjs.org/
 
 # Build Next.js app
 RUN \

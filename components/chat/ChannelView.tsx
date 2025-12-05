@@ -402,17 +402,29 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
   async function handleReaction(messageId: string, emoji: string) {
     if (!currentUserId) return; // Need current user ID
     setShowEmojiPicker(null); // Close picker after selection
-    
+
     try {
       const token = localStorage.getItem('token');
       if (!token) {
         alert('Please log in to add reactions');
         return;
       }
-      
-      // Call backend API to add reaction
-      const data = await api.addReaction(channelId, messageId, emoji, token);
-      
+
+      // Find the current message to check if user already reacted with this emoji
+      const currentMessage = messages.find(m => m.id === messageId);
+      const currentUserReacted = currentMessage?.reactions?.find(r =>
+        r.emoji === emoji && r.users.includes(currentUserId)
+      );
+
+      let data;
+      if (currentUserReacted) {
+        // User already reacted with this emoji, so remove the reaction
+        data = await api.removeReaction(channelId, messageId, token);
+      } else {
+        // User is adding/changing their reaction
+        data = await api.addReaction(channelId, messageId, emoji, token);
+      }
+
       // Update local state with backend response
       if (data.reactions) {
         setMessages(prev => prev.map(m => {
@@ -1098,6 +1110,7 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
                   {m.reactions && m.reactions.length > 0 && (
                     <ReactionBar
                       reactions={m.reactions}
+                      currentUserId={currentUserId}
                       onReact={emoji => handleReaction(m.id, emoji)}
                       onShowPicker={() => setShowEmojiPicker(m.id)}
                     />
