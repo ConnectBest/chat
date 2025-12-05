@@ -19,7 +19,19 @@ RUN \
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+
+# Copy only frontend-related files
+COPY package*.json ./
+COPY tsconfig.json ./
+COPY next.config.js* ./
+COPY postcss.config.js* ./
+COPY tailwind.config.js* ./
+COPY app/ ./app/
+COPY components/ ./components/
+COPY lib/ ./lib/
+COPY public/ ./public/
+COPY middleware.ts* ./
+COPY *.md ./
 
 # Build arguments for environment variables
 ARG NEXT_PUBLIC_API_URL=/api
