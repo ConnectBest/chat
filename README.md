@@ -1,6 +1,6 @@
 # 🧠 ConnectBest Chat
 
-The **ConnectBest Chat Application** is a full-stack real-time chat platform with Next.js frontend and Flask backend, containerized and deployed to **AWS ECS Fargate** with multi-container architecture and HTTPS security.
+The **ConnectBest Chat Application** is a full-stack real-time chat platform with Next.js frontend and Flask backend, containerized and deployed to **AWS ECS Fargate** with multi-container architecture, HTTPS security, and secure credential management.
 
 This application provides secure team communication with real-time messaging, file sharing, and authentication, deployed automatically using **GitHub Actions + AWS CDK** for infrastructure as code.
 
