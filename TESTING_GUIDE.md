@@ -122,34 +122,45 @@ chat/
 
 ---
 
-## 🔄 Current State vs Backend Requirements
-
-### Mock Implementation (Frontend Only)
-All marked with: `// Static code Backend team please change it to dynamic`
+## Backend Integration Notes
 
 **Authentication:**
-- ✅ Simple token-based auth (localStorage)
-- ⚠️ No real JWT validation
-- ⚠️ No password hashing
-- ⚠️ No 2FA/SSO (placeholder text only)
+- POST /api/auth/register (User registration with hashing)
+    1. Email uniqueness validation
+    2. Password hashing (e.g., bcrypt)
+    3. Database user creation
+    4. Optional email verification flow
+- POST /api/auth/login (JWT token generation)
+    1. Validate user credentials
+    2. Generate a signed JWT access token
+    3. Return the token in an httpOnly cookie
+- GET /api/auth/me (Validate JWT and return user)
+    1. Validates the JWT token
+    2. Returns the authenticated user’s profile
+- POST /api/auth/logout (Invalidate session/token)
+    1. Clears or invalidates the user session
 
-**Chat:**
-- ✅ In-memory channel/message storage
-- ⚠️ No persistence (resets on server restart)
-- ⚠️ No real-time WebSocket yet
-- ⚠️ No file uploads yet
+**Channels & Messages:**
+- GET /api/chat/channels (Fetch from database)
+    1. Returns a list of channels from the database
 
-**What Backend Team Needs to Provide:**
-1. `POST /api/auth/register` - User registration with hashing
-2. `POST /api/auth/login` - JWT token generation
-3. `GET /api/auth/me` - Validate JWT and return user
-4. `POST /api/auth/logout` - Invalidate session/token
-5. `GET /api/chat/channels` - Fetch from database
-6. `POST /api/chat/channels` - Create channel in DB
-7. `GET /api/chat/channels/:id/messages` - Query messages
-8. `POST /api/chat/channels/:id/messages/send` - Save message to DB
-9. WebSocket endpoint for real-time events
-10. File upload endpoint with storage
+- POST /api/chat/channels (Create channel in DB)
+    1. Inserts a new channel record and returns the created entry
+
+- GET /api/chat/channels/{channelId}/messages (Query messages)
+    1. Fetches messages belonging to the selected channel
+
+- POST /api/chat/channels/{channelId}/messages/send (Save message to DB)
+    1. Creates a new message record in the database and returns the saved message
+
+**Real-Time WebSocket Integration:**
+| Event             | Description                             |
+| ----------------- | --------------------------------------- |
+| `message:new`     | Broadcast when a new message is created |
+| `typing:start`    | Emitted when a user begins typing       |
+| `typing:stop`     | Emitted when a user stops typing        |
+| `presence:update` | Updates online/offline status           |
+
 
 ---
 
@@ -179,11 +190,7 @@ All marked with: `// Static code Backend team please change it to dynamic`
 
 ## 🐛 Known Issues / Limitations
 
-1. **No persistence**: All data resets when dev server restarts
-2. **No real-time**: Messages don't auto-refresh (refresh page to see new messages)
-3. **No auth guards**: Can access `/chat` without login (add middleware later)
-4. **Hydration warnings**: Minor console warnings from dynamic routing (suppressed)
-5. **No user info in messages**: All messages show "user 1" placeholder
+1. **Hydration warnings**: Minor console warnings from dynamic routing (suppressed)
 
 ---
 
