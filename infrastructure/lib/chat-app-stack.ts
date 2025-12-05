@@ -103,15 +103,28 @@ export class ChatAppStack extends cdk.Stack {
     taskRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
-        // CloudWatch metrics
+        // CloudWatch metrics - comprehensive permissions
         'cloudwatch:GetMetricStatistics',
-        'cloudwatch:ListMetrics',
         'cloudwatch:GetMetricData',
-        // ECS permissions for service status
+        'cloudwatch:ListMetrics',
+        'cloudwatch:PutMetricData',
+        'cloudwatch:GetMetricWidgetImage',
+        // CloudWatch Logs for application logs
+        'logs:CreateLogGroup',
+        'logs:CreateLogStream',
+        'logs:PutLogEvents',
+        'logs:DescribeLogStreams',
+        'logs:DescribeLogGroups',
+        // ECS permissions for service status and health checks
         'ecs:DescribeServices',
         'ecs:DescribeTasks',
         'ecs:ListTasks',
-        'ecs:DescribeClusters'
+        'ecs:DescribeClusters',
+        'ecs:DescribeTaskDefinition',
+        // Application Load Balancer metrics
+        'elasticloadbalancing:DescribeLoadBalancers',
+        'elasticloadbalancing:DescribeTargetGroups',
+        'elasticloadbalancing:DescribeTargetHealth'
       ],
       resources: ['*']
     }));
@@ -626,6 +639,142 @@ export class ChatAppStack extends cdk.Stack {
       ecsMetrics
     );
 
+    // Add second row of widgets for detailed monitoring
+    const albDetailedMetrics = new cloudwatch.GraphWidget({
+      title: 'ALB Detailed Performance',
+      width: 8,
+      height: 6,
+      left: [
+        new cloudwatch.Metric({
+          namespace: 'AWS/ApplicationELB',
+          metricName: 'NewConnectionCount',
+          dimensionsMap: {
+            LoadBalancer: alb.loadBalancerFullName
+          },
+          statistic: 'Sum',
+          label: 'New Connections'
+        })
+      ],
+      right: [
+        new cloudwatch.Metric({
+          namespace: 'AWS/ApplicationELB',
+          metricName: 'ActiveConnectionCount',
+          dimensionsMap: {
+            LoadBalancer: alb.loadBalancerFullName
+          },
+          statistic: 'Average',
+          label: 'Active Connections'
+        })
+      ]
+    });
+
+    // Target Response Time by Target Group
+    const targetResponseTime = new cloudwatch.GraphWidget({
+      title: 'Target Response Time by Service',
+      width: 8,
+      height: 6,
+      left: [
+        new cloudwatch.Metric({
+          namespace: 'AWS/ApplicationELB',
+          metricName: 'TargetResponseTime',
+          dimensionsMap: {
+            LoadBalancer: alb.loadBalancerFullName,
+            TargetGroup: frontendTargetGroup.targetGroupFullName
+          },
+          statistic: 'Average',
+          label: 'Frontend Response Time'
+        }),
+        new cloudwatch.Metric({
+          namespace: 'AWS/ApplicationELB',
+          metricName: 'TargetResponseTime',
+          dimensionsMap: {
+            LoadBalancer: alb.loadBalancerFullName,
+            TargetGroup: backendTargetGroup.targetGroupFullName
+          },
+          statistic: 'Average',
+          label: 'Backend Response Time'
+        })
+      ]
+    });
+
+    // ECS Task Count and Health
+    const ecsTaskMetrics = new cloudwatch.GraphWidget({
+      title: 'ECS Task Health',
+      width: 8,
+      height: 6,
+      left: [
+        new cloudwatch.Metric({
+          namespace: 'AWS/ECS',
+          metricName: 'RunningTaskCount',
+          dimensionsMap: {
+            ServiceName: service.serviceName,
+            ClusterName: cluster.clusterName
+          },
+          statistic: 'Average',
+          label: 'Running Tasks'
+        })
+      ]
+    });
+
+    // Add the second row
+    dashboard.addWidgets(
+      albDetailedMetrics,
+      targetResponseTime,
+      ecsTaskMetrics
+    );
+
+    // Create CloudWatch Alarms for critical metrics
+    const highErrorRateAlarm = new cloudwatch.Alarm(this, 'HighErrorRateAlarm', {
+      alarmName: 'chat-app-high-error-rate',
+      alarmDescription: 'High 5xx error rate detected',
+      metric: new cloudwatch.Metric({
+        namespace: 'AWS/ApplicationELB',
+        metricName: 'HTTPCode_Target_5XX_Count',
+        dimensionsMap: {
+          LoadBalancer: alb.loadBalancerFullName
+        },
+        statistic: 'Sum',
+        period: cdk.Duration.minutes(5)
+      }),
+      threshold: 10, // More than 10 errors in 5 minutes
+      evaluationPeriods: 2,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD
+    });
+
+    const highLatencyAlarm = new cloudwatch.Alarm(this, 'HighLatencyAlarm', {
+      alarmName: 'chat-app-high-latency',
+      alarmDescription: 'High response latency detected',
+      metric: new cloudwatch.Metric({
+        namespace: 'AWS/ApplicationELB',
+        metricName: 'TargetResponseTime',
+        dimensionsMap: {
+          LoadBalancer: alb.loadBalancerFullName
+        },
+        statistic: 'Average',
+        period: cdk.Duration.minutes(5)
+      }),
+      threshold: 2, // 2 seconds
+      evaluationPeriods: 3,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD
+    });
+
+    const lowHealthyHostsAlarm = new cloudwatch.Alarm(this, 'LowHealthyHostsAlarm', {
+      alarmName: 'chat-app-low-healthy-hosts',
+      alarmDescription: 'Low number of healthy hosts',
+      metric: new cloudwatch.Metric({
+        namespace: 'AWS/ApplicationELB',
+        metricName: 'HealthyHostCount',
+        dimensionsMap: {
+          LoadBalancer: alb.loadBalancerFullName
+        },
+        statistic: 'Average',
+        period: cdk.Duration.minutes(1)
+      }),
+      threshold: 1, // Less than 1 healthy host
+      evaluationPeriods: 2,
+      comparisonOperator: cloudwatch.ComparisonOperator.LESS_THAN_THRESHOLD
+    });
+
     // === DEPLOYMENT OUTPUTS ===
 
     // Application URLs
@@ -664,6 +813,11 @@ export class ChatAppStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'ALBAccessLogsBucket', {
       value: albLogsBucket.bucketName,
       description: '📝 S3 bucket containing ALB access logs with HTTP status codes'
+    });
+
+    new cdk.CfnOutput(this, 'CloudWatchAlarms', {
+      value: `High Error Rate: ${highErrorRateAlarm.alarmName}, High Latency: ${highLatencyAlarm.alarmName}, Low Healthy Hosts: ${lowHealthyHostsAlarm.alarmName}`,
+      description: '🚨 CloudWatch alarms for proactive monitoring'
     });
 
     // Email Configuration
