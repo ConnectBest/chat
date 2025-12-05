@@ -118,26 +118,16 @@ RUN cat > /startup.sh << 'EOF'
 #!/bin/bash
 echo "Starting container..."
 
-# Handle DNS configuration with better error handling and fallbacks
-echo "Configuring DNS for better connectivity..."
-{
-    # Try to configure custom DNS servers
-    echo 'nameserver 8.8.8.8' > /etc/resolv.conf
-    echo 'nameserver 8.8.4.4' >> /etc/resolv.conf
-    echo 'nameserver 1.1.1.1' >> /etc/resolv.conf
-    echo "✅ DNS configured successfully"
-} || {
-    echo "⚠️ DNS configuration failed, using system default"
-}
+# Simple DNS configuration without complex error handling
+echo 'nameserver 8.8.8.8' > /etc/resolv.conf
+echo 'nameserver 1.1.1.1' >> /etc/resolv.conf
+echo "✅ DNS configured"
 
-# Test DNS resolution for MongoDB Atlas connectivity
-echo "Testing DNS resolution..."
-{
-    nslookup connectbest.fyufpj1.mongodb.net || echo "⚠️ MongoDB hostname resolution test failed"
-    nslookup google.com || echo "⚠️ General DNS resolution test failed"
-} || echo "⚠️ DNS tests failed, but continuing startup"
+# Test basic connectivity (don't fail if it doesn't work)
+echo "Testing connectivity..."
+ping -c 1 8.8.8.8 >/dev/null 2>&1 && echo "✅ Network connectivity OK" || echo "⚠️ Network test failed, continuing..."
 
-# Start supervisord as root (simpler permissions)
+# Start supervisord as root
 echo "Starting supervisord..."
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
 EOF

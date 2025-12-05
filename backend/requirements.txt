@@ -9,9 +9,10 @@ python-socketio==5.10.0  # Socket.IO server
 eventlet==0.35.1    # Async networking library for WebSocket
 
 # Database
-pymongo==4.6.1      # MongoDB driver
-mongoengine==0.28.2 # MongoDB ODM (Object Document Mapper)
+pymongo==4.3.3      # MongoDB driver (stable version with DNS fixes)
+mongoengine==0.27.0 # MongoDB ODM (Object Document Mapper) - compatible version
 certifi==2023.11.17 # SSL certificate bundle for secure connections
+dnspython==2.3.0    # DNS resolution library - stable version
 
 # Authentication & Security
 PyJWT==2.8.0        # JSON Web Tokens
