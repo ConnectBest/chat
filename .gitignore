@@ -14,6 +14,8 @@ infrastructure/cdk.out/
 current-task-definition.json
 updated-task-definition.json
 github-actions-ecs-policy.json
+github-actions-ecr-multi-container-policy.json
+cleanup-lightsail.sh
 /out/
 
 # Production
