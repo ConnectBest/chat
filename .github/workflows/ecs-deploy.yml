@@ -179,6 +179,7 @@ jobs:
       - name: Deploy updated infrastructure
         run: |
           cd infrastructure
+          npm config set registry https://registry.npmjs.org/
           npm ci
           npx cdk deploy --require-approval never
 
