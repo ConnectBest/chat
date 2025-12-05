@@ -230,18 +230,6 @@ export class ChatAppStack extends cdk.Stack {
       }
     });
 
-    // HTTP Listener with path-based routing
-    const httpListener = alb.addListener('HttpListener', {
-      port: 80,
-      protocol: elbv2.ApplicationProtocol.HTTP,
-      // Redirect HTTP to HTTPS for security
-      defaultAction: elbv2.ListenerAction.redirect({
-        protocol: 'HTTPS',
-        port: '443',
-        permanent: true
-      })
-    });
-
     // Update ALB Security Group to allow HTTPS traffic
     albSecurityGroup.addIngressRule(
       ec2.Peer.anyIpv4(),
@@ -332,23 +320,6 @@ export class ChatAppStack extends cdk.Stack {
       scaleInCooldown: cdk.Duration.minutes(5),
       scaleOutCooldown: cdk.Duration.minutes(5)
     });
-
-    // Security Group for ECS Tasks
-    const ecsSecurityGroup = new ec2.SecurityGroup(this, 'EcsSecurityGroup', {
-      vpc,
-      description: 'Security group for Chat App ECS tasks',
-      allowAllOutbound: true
-    });
-
-    // Allow inbound traffic from ALB
-    ecsSecurityGroup.addIngressRule(
-      ec2.Peer.securityGroupId(albSecurityGroup.securityGroupId),
-      ec2.Port.tcp(8080),
-      'Allow traffic from ALB to container port 8080'
-    );
-
-    // Apply security group to service
-    service.connections.addSecurityGroup(ecsSecurityGroup);
 
     // Outputs
     new cdk.CfnOutput(this, 'LoadBalancerDNS', {
