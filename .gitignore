@@ -8,6 +8,12 @@ node_modules/
 
 # Next.js
 /.next/
+
+# CDK output (contains secrets)
+infrastructure/cdk.out/
+current-task-definition.json
+updated-task-definition.json
+github-actions-ecs-policy.json
 /out/
 
 # Production
