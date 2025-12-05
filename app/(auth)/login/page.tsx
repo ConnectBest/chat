@@ -3,7 +3,6 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -95,23 +94,53 @@ function LoginForm() {
 
   async function handleGoogleSignIn() {
     setLoading(true);
+    setError('');
+    
     try {
-      // Use NextAuth.js signIn function for Google OAuth
-      const result = await signIn('google', {
-        callbackUrl: searchParams.get('callbackUrl') || '/chat',
-        redirect: false // Handle redirect manually to show loading state
+      console.log('🔐 Initiating Google OAuth...');
+      
+      // Get OAuth URL from backend
+      const response = await fetch(getApiUrl('auth/google'), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
 
-      if (result?.error) {
-        setError('Google sign-in failed');
+      console.log('📡 Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ OAuth initialization failed:', errorData);
+        
+        if (errorData.error === 'Google OAuth not configured') {
+          setError('Google Sign-In is currently unavailable. Please contact support or use email login.');
+        } else {
+          setError(errorData.message || 'Failed to connect to Google. Please try again.');
+        }
         setLoading(false);
-      } else if (result?.url) {
-        // NextAuth.js will handle the redirect to Google OAuth
-        window.location.href = result.url;
+        return;
       }
+
+      const data = await response.json();
+      const auth_url = data.auth_url;
+      
+      if (!auth_url) {
+        console.error('❌ No auth URL received');
+        setError('Invalid response from server. Please try again.');
+        setLoading(false);
+        return;
+      }
+
+      console.log('✅ Got auth URL, redirecting to Google...');
+      console.log('🔗 Auth URL:', auth_url);
+      
+      // Redirect to Google OAuth - don't set loading to false as we're leaving the page
+      window.location.href = auth_url;
+      
     } catch (err) {
-      console.error('Google sign-in error:', err);
-      setError('Google sign-in failed');
+      console.error('💥 Google OAuth exception:', err);
+      setError('Unable to connect to authentication server. Please check your internet connection and try again.');
       setLoading(false);
     }
   }

@@ -33,6 +33,11 @@ yarn-error.log*
 .env*.local
 .env
 
+# Analysis and documentation files (temporary)
+GOOGLE_AUTH_ANALYSIS.md
+OAUTH_FIXES_SUMMARY.md
+OAUTH_CODE_CHANGES.md
+
 # Vercel
 .vercel
 

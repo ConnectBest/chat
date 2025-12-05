@@ -382,9 +382,13 @@ class User:
         user.pop('password_hash', None)
         
         # Convert datetime objects to ISO format strings
-        for field in ['created_at', 'updated_at', 'last_login', 'deleted_at', 'verification_expires']:
+        for field in ['created_at', 'updated_at', 'last_login', 'deleted_at', 'verification_expires', 'last_seen', 'status_updated_at']:
             if field in user and user[field]:
-                user[field] = user[field].isoformat()
+                try:
+                    user[field] = user[field].isoformat()
+                except (AttributeError, ValueError):
+                    # Field is not a datetime or already a string
+                    pass
         
         return user
     

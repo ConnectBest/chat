@@ -1,22 +1,20 @@
 "use client";
 import React, { useEffect } from 'react';
-import { useSession } from 'next-auth/react';
+import { useAuth } from '@/lib/useAuth';
 import { ChannelSidebar } from '@/components/chat/ChannelSidebar';
 import { ProfileMenu } from '@/components/ui/ProfileMenu';
 import { getApiUrl } from '@/lib/apiConfig';
 
 export default function ChatLayout({ children }: { children: React.ReactNode }) {
-  const { data: session } = useSession();
+  const { data: session, token } = useAuth();
   
   useEffect(() => {
     // Set user status to online when chat loads
     const setOnlineStatus = async () => {
       try {
-        // Get token from NextAuth session
-        const token = (session?.user as any)?.accessToken;
         if (!token) return;
 
-        await fetch(getApiUrl('users/me'), {
+        const response = await fetch(getApiUrl('users/me'), {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -24,8 +22,13 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
           },
           body: JSON.stringify({ status: 'online' })
         });
+
+        if (!response.ok) {
+          console.warn('Failed to set online status:', response.status);
+        }
       } catch (error) {
-        console.error('Failed to set online status:', error);
+        // Silently fail - online status is not critical
+        console.warn('Failed to set online status:', error);
       }
     };
 
@@ -38,7 +41,6 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
       // Set user to offline when leaving
       const handleBeforeUnload = async () => {
         try {
-          const token = (session?.user as any)?.accessToken;
           if (!token) return;
 
           navigator.sendBeacon(

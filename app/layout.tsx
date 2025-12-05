@@ -1,22 +1,19 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import React from 'react'
-import { SessionProvider } from 'next-auth/react'
 import { ThemeProvider } from '@/components/providers/ThemeProvider'
 import { QueryProvider } from '@/components/providers/QueryProvider'
 import { SocketProvider } from '@/components/providers/SocketProvider'
 
 function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <SessionProvider>
-      <ThemeProvider>
-        <QueryProvider>
-          <SocketProvider>
-            {children}
-          </SocketProvider>
-        </QueryProvider>
-      </ThemeProvider>
-    </SessionProvider>
+    <ThemeProvider>
+      <QueryProvider>
+        <SocketProvider>
+          {children}
+        </SocketProvider>
+      </QueryProvider>
+    </ThemeProvider>
   );
 }
 

@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
-import { useSession } from 'next-auth/react';
+import { useAuth, getToken } from '@/lib/useAuth';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -28,7 +28,7 @@ interface ChannelHeaderProps {
 }
 
 export function ChannelHeader({ channelId, channelName, memberCount, onUpdateChannel }: ChannelHeaderProps) {
-  const { data: session } = useSession();
+  const { token } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showAddMembers, setShowAddMembers] = useState(false);
   const [showRenameChannel, setShowRenameChannel] = useState(false);
@@ -43,11 +43,10 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
   const [showCanvas, setShowCanvas] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Helper function to get token from either localStorage or NextAuth session
-  const getToken = () => {
-    const localToken = localStorage.getItem('token');
-    const sessionToken = (session?.user as any)?.accessToken;
-    return localToken || sessionToken;
+  // Helper function to get token
+  const getAuthToken = (): string | undefined => {
+    const authToken = token || getToken();
+    return authToken || undefined;
   };
 
   // Close menu when clicking outside
@@ -64,13 +63,13 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
   // Load users and channel members
   useEffect(() => {
     async function loadData() {
-      const token = getToken();
-      if (!token) return;
+      const authToken = getAuthToken();
+      if (!authToken) return;
 
       try {
         // Load all users
         const usersResponse = await fetch(getApiUrl('users'), {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': `Bearer ${authToken}` }
         });
         if (usersResponse.ok) {
           const usersData = await usersResponse.json();
@@ -78,7 +77,7 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
         }
 
         // Load channel details with members
-        const channelData = await api.getChannelDetails(channelId, token);
+        const channelData = await api.getChannelDetails(channelId, authToken);
         if (channelData.channel && channelData.channel.members) {
           const members = channelData.channel.members.map((m: any) => ({
             id: m.user_id,
@@ -99,7 +98,7 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
     }
 
     loadData();
-  }, [channelId, session]); // Add session to dependencies
+  }, [channelId, token]); // Add token to dependencies
 
   // Search users by name, email, or phone
   useEffect(() => {
@@ -124,8 +123,8 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
   }, [searchQuery, allUsers, channelMembers]);
 
   function handleAddMember(user: User) {
-    const token = getToken();
-    if (!token) {
+    const authToken = getAuthToken();
+    if (!authToken) {
       console.error('No authentication token available');
       alert('Authentication error. Please try logging in again.');
       return;
@@ -134,7 +133,7 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
     console.log('Adding member:', user.id, 'to channel:', channelId);
 
     // Add to backend
-    api.addChannelMember(channelId, user.id, token)
+    api.addChannelMember(channelId, user.id, authToken)
       .then(() => {
         setChannelMembers(prev => [...prev, user]);
         setSearchQuery('');
@@ -149,11 +148,11 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
   }
 
   function handleRemoveMember(userId: string) {
-    const token = getToken();
+    const authToken = getAuthToken();
     if (!token) return;
 
     // Remove from backend
-    api.removeChannelMember(channelId, userId, token)
+    api.removeChannelMember(channelId, userId, authToken)
       .then(() => {
         setChannelMembers(prev => prev.filter(m => m.id !== userId));
         console.log('Removed member:', userId);

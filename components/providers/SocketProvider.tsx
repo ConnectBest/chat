@@ -1,6 +1,6 @@
 "use client";
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
-import { useSession } from 'next-auth/react';
+import { useAuth } from '@/lib/useAuth';
 
 interface WebSocketMessage {
   type: string;
@@ -26,7 +26,7 @@ const MAX_RECONNECT_ATTEMPTS = 3;
 const INITIAL_RECONNECT_DELAY = 1000;
 
 export function SocketProvider({ children }: { children: React.ReactNode }) {
-  const { data: session, status } = useSession();
+  const { status, token } = useAuth();
   const [connected, setConnected] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const messageCallbacksRef = useRef<Set<(data: WebSocketMessage) => void>>(new Set());
@@ -63,11 +63,11 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const connect = useCallback(() => {
-    // Don't connect if we shouldn't or if already connecting/connected
-    if (!shouldConnectRef.current || !session?.user || status !== 'authenticated') {
+    // Don't connect if we shouldn't or if not authenticated
+    if (!shouldConnectRef.current || !token || status !== 'authenticated') {
       console.log('🚫 Skipping WebSocket connection:', {
         shouldConnect: shouldConnectRef.current,
-        hasUser: !!session?.user,
+        hasToken: !!token,
         status
       });
       return;
@@ -97,8 +97,21 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         cleanup();
       }
 
-      const userId = (session.user as any).id || 'anonymous';
-      const userName = session.user.name || 'Anonymous';
+      // Get user data from localStorage
+      const userStr = localStorage.getItem('user');
+      let userId = 'anonymous';
+      let userName = 'Anonymous';
+      
+      if (userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          userId = user.id || 'anonymous';
+          userName = user.full_name || user.username || 'Anonymous';
+        } catch (e) {
+          console.error('Failed to parse user data:', e);
+        }
+      }
+      
       const url = `${wsUrl}?userId=${encodeURIComponent(userId)}&userName=${encodeURIComponent(userName)}&channelId=general`;
 
       console.log('🔌 Connecting to WebSocket:', {
@@ -142,11 +155,11 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         // 1. We should still be connected (component not unmounted)
         // 2. We haven't reached max attempts
         // 3. The close wasn't clean (not user-initiated)
-        // 4. We have a valid session
+        // 4. We have a valid token
         if (shouldConnectRef.current &&
             reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS &&
             !event.wasClean &&
-            session?.user) {
+            token) {
 
           const delay = INITIAL_RECONNECT_DELAY * Math.pow(2, reconnectAttemptsRef.current);
           console.log(`🔄 Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1}/${MAX_RECONNECT_ATTEMPTS})`);
@@ -179,17 +192,17 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       console.error('❌ Failed to create WebSocket:', error);
       isConnectingRef.current = false;
     }
-  }, [session?.user, status, cleanup]);
+  }, [token, status, cleanup]);
 
-  // Connect when session is ready
+  // Connect when authenticated
   useEffect(() => {
-    if (status === 'authenticated' && session?.user) {
-      console.log('👤 Session authenticated, initializing WebSocket...');
+    if (status === 'authenticated' && token) {
+      console.log('👤 User authenticated, initializing WebSocket...');
       shouldConnectRef.current = true;
       reconnectAttemptsRef.current = 0;
       connect();
     } else if (status === 'unauthenticated') {
-      console.log('🚫 Session unauthenticated, cleaning up WebSocket...');
+      console.log('🚫 User unauthenticated, cleaning up WebSocket...');
       shouldConnectRef.current = false;
       cleanup();
     }
@@ -199,24 +212,39 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       shouldConnectRef.current = false;
       cleanup();
     };
-  }, [status, session?.user?.id, connect, cleanup]);
+  }, [status, token, connect, cleanup]);
 
   const sendMessage = useCallback((channelId: string, message: string) => {
-    if (socketRef.current?.readyState === WebSocket.OPEN && session?.user) {
+    if (socketRef.current?.readyState === WebSocket.OPEN && token) {
+      // Get user data from localStorage
+      const userStr = localStorage.getItem('user');
+      let userId = 'anonymous';
+      let userName = 'Anonymous';
+      
+      if (userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          userId = user.id || 'anonymous';
+          userName = user.full_name || user.username || 'Anonymous';
+        } catch (e) {
+          console.error('Failed to parse user data:', e);
+        }
+      }
+      
       const payload = {
         action: 'sendMessage',
         channelId,
         message,
-        userId: (session.user as any)?.id,
-        userName: session.user?.name
+        userId,
+        userName
       };
 
       console.log('📤 Sending WebSocket message:', payload);
       socketRef.current.send(JSON.stringify(payload));
     } else {
-      console.warn('⚠️ Cannot send message: WebSocket not connected or no session');
+      console.warn('⚠️ Cannot send message: WebSocket not connected or no authentication');
     }
-  }, [session?.user]);
+  }, [token]);
 
   const onMessage = useCallback((callback: (data: WebSocketMessage) => void) => {
     messageCallbacksRef.current.add(callback);

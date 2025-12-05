@@ -2,48 +2,42 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useAuth, getToken } from '@/lib/useAuth';
 import { getApiUrl } from '@/lib/apiConfig';
 
 export default function ChatPage() {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { status, token } = useAuth();
   const [channels, setChannels] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchAndRedirect = async () => {
       try {
-        console.log('🔍 [Chat] Session status:', status, 'Session user:', !!session?.user);
+        console.log('🔍 [Chat] Auth status:', status);
 
-        // Don't proceed if session is still loading
+        // Don't proceed if auth is still loading
         if (status === 'loading') {
-          console.log('⏳ [Chat] Session still loading, waiting...');
+          console.log('⏳ [Chat] Auth still loading, waiting...');
           return;
         }
 
-        console.log('✅ [Chat] Session loaded, proceeding with auth check');
+        console.log('✅ [Chat] Auth loaded, proceeding with auth check');
 
         // Give a small delay to ensure localStorage is set after redirect
         await new Promise(resolve => setTimeout(resolve, 100));
 
-        // Check for token from both sources: localStorage (custom auth) and session (NextAuth)
-        const localToken = localStorage.getItem('token');
-        const sessionToken = (session?.user as any)?.accessToken;
-        const token = localToken || sessionToken;
+        // Get token from our auth system
+        const authToken = token || getToken();
 
-        console.log('🔑 [Chat] Token sources:', {
-          hasLocal: !!localToken,
-          hasSession: !!sessionToken,
-          usingToken: !!token,
-          sessionStatus: status
+        console.log('🔑 [Chat] Token check:', {
+          hasToken: !!authToken,
+          authStatus: status
         });
 
-        // Only redirect to login if we're sure there's no valid session
-        if (!token) {
-          // If status is 'unauthenticated', definitely redirect
-          // If status is 'authenticated' but no token, something's wrong - also redirect
-          if (status === 'unauthenticated' || (status === 'authenticated' && !sessionToken && !localToken)) {
+        // Only redirect to login if we're sure there's no valid token
+        if (!authToken) {
+          if (status === 'unauthenticated') {
             console.log('❌ [Chat] No valid token found, redirecting to login');
             router.push('/login');
             return;
@@ -125,7 +119,7 @@ export default function ChatPage() {
     };
 
     fetchAndRedirect();
-  }, [router, session, status]);
+  }, [router, status, token]);
 
   if (status === 'loading' || loading) {
     return (
@@ -133,7 +127,7 @@ export default function ChatPage() {
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-400"></div>
           <p className="mt-4 text-gray-400">
-            {status === 'loading' ? 'Loading session...' : 'Loading channels...'}
+            {status === 'loading' ? 'Loading authentication...' : 'Loading channels...'}
           </p>
         </div>
       </div>

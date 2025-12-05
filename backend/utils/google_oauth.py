@@ -7,8 +7,11 @@ Provides functions for generating authorization URLs and validating tokens.
 
 import os
 import requests
+import logging
 from typing import Dict, Optional
 from urllib.parse import urlencode
+
+logger = logging.getLogger(__name__)
 
 
 class GoogleOAuth:
@@ -81,7 +84,7 @@ class GoogleOAuth:
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            print(f"Error exchanging code for token: {e}")
+            logger.error(f"Error exchanging code for token: {e}", exc_info=True)
             return None
     
     def get_user_info(self, access_token: str) -> Optional[Dict]:
@@ -104,7 +107,7 @@ class GoogleOAuth:
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            print(f"Error getting user info: {e}")
+            logger.error(f"Error getting user info: {e}", exc_info=True)
             return None
     
     def verify_id_token(self, id_token: str) -> Optional[Dict]:
@@ -128,12 +131,12 @@ class GoogleOAuth:
             
             # Verify audience matches our client ID
             if token_info.get('aud') != self.client_id:
-                print("Invalid audience in ID token")
+                logger.error("Invalid audience in ID token")
                 return None
             
             return token_info
         except requests.exceptions.RequestException as e:
-            print(f"Error verifying ID token: {e}")
+            logger.error(f"Error verifying ID token: {e}", exc_info=True)
             return None
 
 
@@ -165,8 +168,8 @@ def create_google_oauth_instance() -> Optional[GoogleOAuth]:
         None: If credentials not configured
     """
     if not validate_google_credentials():
-        print("⚠️  Google OAuth credentials not configured")
-        print("Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env file")
+        logger.warning("⚠️  Google OAuth credentials not configured")
+        logger.warning("Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env file")
         return None
     
     return GoogleOAuth()
