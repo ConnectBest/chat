@@ -88,8 +88,8 @@ jobs:
           push: true
           build-args: |
             CACHEBUST=${{ github.run_number }}
-            NEXT_PUBLIC_API_URL=https://chat-app.efr21as675de2.us-west-2.cs.amazonlightsail.com/api
-            NEXT_PUBLIC_WS_URL=https://chat-app.efr21as675de2.us-west-2.cs.amazonlightsail.com
+            NEXT_PUBLIC_API_URL=http://chat-app-alb-2064082767.us-west-2.elb.amazonaws.com/api
+            NEXT_PUBLIC_WS_URL=http://chat-app-alb-2064082767.us-west-2.elb.amazonaws.com
             NEXT_PUBLIC_WEBSOCKET_URL=${{ secrets.WEBSOCKET_URL }}
           tags: |
             ${{ steps.uris.outputs.PUBLIC_URI }}:latest
