@@ -23,8 +23,8 @@ export class ChatAppStack extends cdk.Stack {
     super(scope, id, props);
 
     // Image tag parameters - allow dynamic image tags for deployments
-    const frontendImageTag = this.node.tryGetContext('frontendImageTag') || 'latest';
-    const backendImageTag = this.node.tryGetContext('backendImageTag') || 'latest';
+    const frontendImageTag = cdk.App.of(this).node.tryGetContext('frontendImageTag') || 'latest';
+    const backendImageTag = cdk.App.of(this).node.tryGetContext('backendImageTag') || 'latest';
 
     // VPC with public and private subnets across 2 AZs
     const vpc = new ec2.Vpc(this, 'ChatAppVpc', {
@@ -145,22 +145,22 @@ export class ChatAppStack extends cdk.Stack {
 
     // SECURITY: Get all sensitive values from environment variables only
     // DO NOT hardcode credentials in source code
-    const mongoUri = process.env.MONGODB_URI || this.node.tryGetContext('MONGODB_URI');
+    const mongoUri = process.env.MONGODB_URI || cdk.App.of(this).node.tryGetContext('MONGODB_URI');
     if (!mongoUri) {
       throw new Error('MONGODB_URI environment variable is required');
     }
 
-    const nextAuthSecret = process.env.NEXTAUTH_SECRET || this.node.tryGetContext('NEXTAUTH_SECRET');
+    const nextAuthSecret = process.env.NEXTAUTH_SECRET || cdk.App.of(this).node.tryGetContext('NEXTAUTH_SECRET');
     if (!nextAuthSecret) {
       throw new Error('NEXTAUTH_SECRET environment variable is required');
     }
 
-    const secretKey = process.env.SECRET_KEY || this.node.tryGetContext('SECRET_KEY');
+    const secretKey = process.env.SECRET_KEY || cdk.App.of(this).node.tryGetContext('SECRET_KEY');
     if (!secretKey) {
       throw new Error('SECRET_KEY environment variable is required');
     }
 
-    const jwtSecretKey = process.env.JWT_SECRET_KEY || this.node.tryGetContext('JWT_SECRET_KEY');
+    const jwtSecretKey = process.env.JWT_SECRET_KEY || cdk.App.of(this).node.tryGetContext('JWT_SECRET_KEY');
     if (!jwtSecretKey) {
       throw new Error('JWT_SECRET_KEY environment variable is required');
     }
