@@ -101,7 +101,8 @@ COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 RUN mkdir -p /var/log/supervisor && \
     chown -R appuser:appuser /var/log/supervisor && \
     chown -R appuser:appuser /app && \
-    chmod -R 755 /app
+    chmod -R 755 /app && \
+    chmod +x /app/frontend/server.js || true
 
 # Expose ports
 EXPOSE 8080 5001
@@ -112,7 +113,7 @@ ENV HOSTNAME=0.0.0.0
 ENV PYTHONUNBUFFERED=1
 ENV NODE_ENV=production
 
-# Create a startup script that handles DNS and user switching
+# Create a startup script that handles DNS
 RUN cat > /startup.sh << 'EOF'
 #!/bin/bash
 echo "Starting container..."
@@ -136,12 +137,12 @@ echo "Testing DNS resolution..."
     nslookup google.com || echo "⚠️ General DNS resolution test failed"
 } || echo "⚠️ DNS tests failed, but continuing startup"
 
-# Start supervisord as appuser
-echo "Starting supervisord as appuser..."
-exec su appuser -c "/usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf"
+# Start supervisord as root (simpler permissions)
+echo "Starting supervisord..."
+exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
 EOF
 
 RUN chmod +x /startup.sh
 
-# Start with the startup script (keeps root for DNS, then switches to appuser)
+# Start with the startup script as root for simpler permissions
 CMD ["/startup.sh"]
