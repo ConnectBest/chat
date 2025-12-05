@@ -84,39 +84,18 @@ This structure enables full-stack development inside a single repository while m
 
 ## 📚 Documentation
 
-The following guides provide detailed instructions for development, testing, deployment, authentication, backend requirements, and architecture across the ConnectBest Chat system.
+Complete documentation is available in the [`docs/`](docs/) directory, organized by topic:
 
-### 🧰 Development & Architecture
+- **🚀 [Setup & Getting Started](docs/setup/)** - Installation, configuration, and first-time setup guides
+- **🏗️ [Architecture & Design](docs/architecture/)** - Technical architecture, database design, and component structure
+- **🔐 [Authentication & Security](docs/authentication/)** - JWT, OAuth, 2FA, and security implementation
+- **🛠️ [Development](docs/development/)** - Testing, debugging, schema migration, and development workflows
+- **🚀 [Deployment](docs/deployment/)** - Production deployment guides and checklists
+- **📡 [API Documentation](docs/api/)** - Complete API reference and endpoint specifications
+- **📊 [Diagrams](docs/diagrams/)** - Visual architecture diagrams and flow charts
 
-- [MONOREPO_README.md](./MONOREPO_README.md) — Monorepo structure overview  
-- [FRONTEND_DOCS.md](./FRONTEND_DOCS.md) — Frontend architecture, components, and design patterns  
-- [BACKEND_API_REQUIREMENTS.md](./BACKEND_API_REQUIREMENTS.md) — Required backend endpoints & API specifications  
-- [AUTHENTICATION_GUIDE.md](./AUTHENTICATION_GUIDE.md) — JWT, session handling, Google OAuth, and 2FA  
-- [EMAIL_VERIFICATION_GUIDE.md](./EMAIL_VERIFICATION_GUIDE.md) — Email verification workflow  
-- [CLAUDE.md](./CLAUDE.md) — Internal development guide for Claude Code (AI coding assistant)  
-- [DATABASE_AI_REQUIREMENTS.md](./DATABASE_AI_REQUIREMENTS.md) — AI-related database schema expectations  
-- [DATABASE_AI_REQUIREMENTS_MONGODB.md](./DATABASE_AI_REQUIREMENTS_MONGODB.md) — MongoDB schema design for AI features  
-
-### 🧪 Testing & Static Data
-
-- [TESTING_GUIDE.md](./TESTING_GUIDE.md) — Manual testing flows  
-- [STATIC_DATA_LOCATIONS.md](./STATIC_DATA_LOCATIONS.md) — Static/mock data locations that require backend integration  
-
-### ⚙️ Deployment
-
-- [DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md) — Full deployment instructions  
-- [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md) — Deployment readiness checklist  
-- [SINGLE_CONTAINER_DEPLOYMENT.md](./SINGLE_CONTAINER_DEPLOYMENT.md) — Single-container deployment steps  
-
-### 🔐 Authentication & OAuth
-
-- [GOOGLE_OAUTH_SETUP.md](./GOOGLE_OAUTH_SETUP.md) — Google OAuth credentials setup and integration  
-
-### 📝 Engineering Workflow
-
-- [PRE_MERGE_CHECKLIST.md](./PRE_MERGE_CHECKLIST.md) — Pre-merge requirements  
-- [PR_CLEANUP_SUMMARY.md](./PR_CLEANUP_SUMMARY.md) — Code cleanup and PR quality checklist  
-
-### 📊 Comparisons / Analysis
-
-- [SLACK_COMPARISON.md](./SLACK_COMPARISON.md) — Comparison with Slack
+### Quick Links
+- **New Developer?** Start with [docs/setup/MONOREPO_README.md](docs/setup/MONOREPO_README.md)
+- **Backend Setup?** Follow [docs/setup/backend-readme.md](docs/setup/backend-readme.md)
+- **Deployment?** Check [docs/deployment/DEPLOYMENT_GUIDE.md](docs/deployment/DEPLOYMENT_GUIDE.md)
+- **API Reference?** See [docs/api/BACKEND_API_REQUIREMENTS.md](docs/api/BACKEND_API_REQUIREMENTS.md)

@@ -49,7 +49,7 @@ export class ChatAppStack extends cdk.Stack {
     const cluster = new ecs.Cluster(this, 'ChatAppCluster', {
       vpc,
       clusterName: 'chat-app-cluster',
-      containerInsights: true // Enable container insights
+      containerInsightsV2: ecs.ContainerInsights.ENABLED // Use new property
     });
 
     // CloudWatch Log Group
@@ -330,13 +330,7 @@ export class ChatAppStack extends cdk.Stack {
       priority: 10,
       conditions: [
         elbv2.ListenerCondition.pathPatterns([
-          '/api/auth/*',           // All NextAuth routes
-          '/api/auth/signin*',     // Sign in page
-          '/api/auth/signout*',    // Sign out
-          '/api/auth/session*',    // Session check
-          '/api/auth/csrf*',       // CSRF token
-          '/api/auth/providers*',  // Available providers
-          '/api/auth/callback/*'   // OAuth callbacks
+          '/api/auth/*'  // This covers all NextAuth routes
         ])
       ],
       action: elbv2.ListenerAction.forward([frontendTargetGroup])

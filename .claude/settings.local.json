@@ -48,7 +48,9 @@
       "Bash(do echo \"=== $name ===\")",
       "Bash(done)",
       "Bash(gh secret set:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(tree:*)",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []
