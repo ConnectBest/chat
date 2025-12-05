@@ -181,6 +181,8 @@ jobs:
           cd infrastructure
           npm config set registry https://registry.npmjs.org/
           rm -f package-lock.json
+          rm -rf node_modules
+          rm -rf lib/*.js lib/*.d.ts
           npm install
           npm run build
           npx cdk deploy --require-approval never
