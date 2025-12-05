@@ -72,18 +72,27 @@ export class ChatAppStack extends cdk.Stack {
       }));
     }
 
-    // Get environment variables from context or use the values from working Lightsail deployment
-    const mongoUri = this.node.tryGetContext('MONGODB_URI') ||
-      'mongodb+srv://connectbest_db_user:C8YRJ4iFFJI5McPE@connectbest.fyufpj1.mongodb.net/?retryWrites=true&w=majority&appName=ConnectBest';
+    // SECURITY: Get all sensitive values from environment variables only
+    // DO NOT hardcode credentials in source code
+    const mongoUri = process.env.MONGODB_URI || this.node.tryGetContext('MONGODB_URI');
+    if (!mongoUri) {
+      throw new Error('MONGODB_URI environment variable is required');
+    }
 
-    const nextAuthSecret = this.node.tryGetContext('NEXTAUTH_SECRET') ||
-      'hyXz0dXr4vxKszUBL02xO69xV0ONfNkQ0oGqQeeZtsE=';
+    const nextAuthSecret = process.env.NEXTAUTH_SECRET || this.node.tryGetContext('NEXTAUTH_SECRET');
+    if (!nextAuthSecret) {
+      throw new Error('NEXTAUTH_SECRET environment variable is required');
+    }
 
-    const secretKey = this.node.tryGetContext('SECRET_KEY') ||
-      '8CtviajCigJVPSNFUzJVP9y6uelEMujmQfy0qsfw2sI=';
+    const secretKey = process.env.SECRET_KEY || this.node.tryGetContext('SECRET_KEY');
+    if (!secretKey) {
+      throw new Error('SECRET_KEY environment variable is required');
+    }
 
-    const jwtSecretKey = this.node.tryGetContext('JWT_SECRET_KEY') ||
-      'bVnLcSNvdEghq9qpgWfaEmGkhFYpAhmII4A2jQJdSmU=';
+    const jwtSecretKey = process.env.JWT_SECRET_KEY || this.node.tryGetContext('JWT_SECRET_KEY');
+    if (!jwtSecretKey) {
+      throw new Error('JWT_SECRET_KEY environment variable is required');
+    }
 
     // Frontend Container (Next.js)
     const frontendContainer = taskDefinition.addContainer('FrontendContainer', {

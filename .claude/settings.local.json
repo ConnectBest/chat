@@ -31,7 +31,9 @@
       "Bash(git ls-tree:*)",
       "Bash(aws lightsail get-container-services:*)",
       "Bash(git reset:*)",
-      "Bash(gh workflow run:*)"
+      "Bash(gh workflow run:*)",
+      "Bash(./architecture-overview.sh)",
+      "Bash(openssl req:*)"
     ],
     "deny": [],
     "ask": []
