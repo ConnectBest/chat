@@ -73,16 +73,24 @@ jobs:
       - name: Ensure Public ECR repos exist (us-east-1)
         run: |
           # Frontend repo
+          echo "Checking for chat-frontend repository..."
           aws ecr-public describe-repositories --region us-east-1 \
-            --repository-names "chat-frontend" >/dev/null 2>&1 || \
-          aws ecr-public create-repository --region us-east-1 \
-            --repository-name "chat-frontend" >/dev/null
+            --repository-names "chat-frontend" >/dev/null 2>&1 || {
+            echo "Creating chat-frontend repository..."
+            aws ecr-public create-repository --region us-east-1 \
+              --repository-name "chat-frontend" \
+              --catalog-data repositoryDescription="Chat application frontend container"
+          }
 
           # Backend repo
+          echo "Checking for chat-backend repository..."
           aws ecr-public describe-repositories --region us-east-1 \
-            --repository-names "chat-backend" >/dev/null 2>&1 || \
-          aws ecr-public create-repository --region us-east-1 \
-            --repository-name "chat-backend" >/dev/null
+            --repository-names "chat-backend" >/dev/null 2>&1 || {
+            echo "Creating chat-backend repository..."
+            aws ecr-public create-repository --region us-east-1 \
+              --repository-name "chat-backend" \
+              --catalog-data repositoryDescription="Chat application backend container"
+          }
 
       # Logins
       - name: Login to Private ECR
@@ -239,17 +247,27 @@ jobs:
         run: |
           echo "ECS deployment complete!"
 
-          # Get load balancer DNS name
-          ALB_DNS=$(aws elbv2 describe-load-balancers \
+          # Try to get load balancer DNS name (may fail due to permissions)
+          if ALB_DNS=$(aws elbv2 describe-load-balancers \
             --names chat-app-alb \
             --query 'LoadBalancers[0].DNSName' \
-            --output text)
+            --output text 2>/dev/null); then
+            echo "Application URL: https://$ALB_DNS"
+            echo "Health Check: https://$ALB_DNS/api/health"
+          else
+            echo "⚠️  Could not retrieve ALB DNS (insufficient permissions)"
+            echo "Application URL: https://chat.connect-best.com"
+            echo "Health Check: https://chat.connect-best.com/api/health"
+          fi
 
-          echo "Application URL: http://$ALB_DNS"
-          echo "Health Check: http://$ALB_DNS/api/health"
-
-          # Get service status
-          aws ecs describe-services \
+          # Get service status (may fail due to permissions)
+          echo "Getting ECS service status..."
+          if aws ecs describe-services \
             --cluster ${{ env.ECS_CLUSTER }} \
             --services ${{ env.ECS_SERVICE }} \
-            --query 'services[0].{Status:status,TaskDefinition:taskDefinition,RunningCount:runningCount,DesiredCount:desiredCount}'
+            --query 'services[0].{Status:status,TaskDefinition:taskDefinition,RunningCount:runningCount,DesiredCount:desiredCount}' 2>/dev/null; then
+            echo "✅ ECS service status retrieved successfully"
+          else
+            echo "⚠️  Could not retrieve ECS service status (insufficient permissions)"
+            echo "Service should be running at: https://chat.connect-best.com"
+          fi
