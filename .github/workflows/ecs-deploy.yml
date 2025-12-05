@@ -148,17 +148,19 @@ jobs:
             exit 1
           fi
 
-          # Get task definition
+          # Get task definition and clean it for registration
           aws ecs describe-task-definition \
             --task-definition $TASK_DEF_ARN \
             --query 'taskDefinition' > task-definition.json
 
           # Update image URI in task definition
           NEW_IMAGE_URI="${{ needs.build-and-push.outputs.image-uri }}"
+          echo "Updating to new image: $NEW_IMAGE_URI"
 
-          # Use jq to update the image URI
+          # Use jq to update the image URI and clean the task definition
           jq --arg IMAGE_URI "$NEW_IMAGE_URI" \
-             '.containerDefinitions[0].image = $IMAGE_URI | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy)' \
+             '.containerDefinitions[0].image = $IMAGE_URI |
+              del(.taskDefinitionArn, .revision, .status, .requiresAttributes?, .placementConstraints?, .compatibilities?, .registeredAt?, .registeredBy?, .tags?)' \
              task-definition.json > updated-task-definition.json
 
           echo "Updated task definition:"
@@ -170,6 +172,7 @@ jobs:
             --query 'taskDefinition.taskDefinitionArn' \
             --output text)
 
+          echo "New task definition registered: $NEW_TASK_DEF_ARN"
           echo "task-def-arn=$NEW_TASK_DEF_ARN" >> $GITHUB_OUTPUT
 
       - name: Update ECS Service
