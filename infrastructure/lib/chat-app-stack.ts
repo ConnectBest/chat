@@ -331,12 +331,27 @@ export class ChatAppStack extends cdk.Stack {
     });
 
     // Add HTTPS listener rules with correct priorities
-    // Priority 10: Route NextAuth routes to frontend (highest priority)
+    // Priority 10: Route specific NextAuth.js routes to frontend (highest priority)
     httpsListener.addAction('NextAuthRoute', {
       priority: 10,
       conditions: [
         elbv2.ListenerCondition.pathPatterns([
-          '/api/auth/*'  // This covers all NextAuth routes
+          '/api/auth/signin*',     // NextAuth sign in pages
+          '/api/auth/signout',     // NextAuth sign out
+          '/api/auth/session',     // NextAuth session check
+          '/api/auth/csrf',        // NextAuth CSRF token
+          '/api/auth/providers'    // NextAuth available providers
+        ])
+      ],
+      action: elbv2.ListenerAction.forward([frontendTargetGroup])
+    });
+
+    // Priority 20: Route NextAuth callback routes to frontend
+    httpsListener.addAction('NextAuthCallbackRoute', {
+      priority: 20,
+      conditions: [
+        elbv2.ListenerCondition.pathPatterns([
+          '/api/auth/callback/*'   // OAuth callbacks (Google, etc.)
         ])
       ],
       action: elbv2.ListenerAction.forward([frontendTargetGroup])
