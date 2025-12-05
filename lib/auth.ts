@@ -94,10 +94,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
   callbacks: {
     async signIn({ user, account, profile }) {
-      // For Google OAuth, you could register with Flask backend here
+      // For Google OAuth, ensure user has accessToken
       if (account?.provider === "google" && user.email) {
-        // Optional: Register Google users with Flask backend
         try {
+          // First, try to register user (might already exist, that's ok)
           await fetch(`${BACKEND_API_URL}/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -107,10 +107,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               password: Math.random().toString(36), // Random password for OAuth users
               role: 'user'
             }),
-          });
+          }).catch(() => {}); // Ignore errors - user might already exist
+
+          // Create a session token for Google OAuth users
+          // This will allow them to access the app while we work on proper backend integration
+          (user as any).accessToken = `google_oauth_${Date.now()}_${btoa(user.email || '')}`;
+          (user as any).role = 'user';
+          (user as any).id = user.email;
+
         } catch (error) {
-          // User might already exist, that's ok
-          console.log('Google user registration skipped');
+          console.error('Google OAuth error:', error);
+          // Still provide fallback token
+          (user as any).accessToken = `google_oauth_${Date.now()}_${btoa(user.email || '')}`;
+          (user as any).role = 'user';
+          (user as any).id = user.email;
         }
       }
       return true;
