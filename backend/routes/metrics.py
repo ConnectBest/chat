@@ -260,7 +260,7 @@ class TimeSeriesMetrics(Resource):
         'period': 'Period in minutes (default: 60)',
         'points': 'Number of data points (default: 20)'
     })
-    def get(self, current_user, metric_type):
+    def get(self, metric_type, current_user):
         """Get time series data for specific metrics"""
         try:
             # Parse query parameters
