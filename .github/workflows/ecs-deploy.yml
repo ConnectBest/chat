@@ -123,6 +123,8 @@ jobs:
             NEXT_PUBLIC_API_URL=https://chat.connect-best.com/api
             NEXT_PUBLIC_WEBSOCKET_URL=${{ secrets.WEBSOCKET_URL }}
             NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+            NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}
+            GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
           tags: |
             ${{ steps.uris.outputs.PUBLIC_FRONTEND_URI }}:latest
             ${{ steps.uris.outputs.PUBLIC_FRONTEND_URI }}:${{ env.IMAGE_TAG_SHA }}
