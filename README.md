@@ -1,8 +1,8 @@
 # 🧠 ConnectBest Chat
 
-The **ConnectBest Chat microservice** is a lightweight Python (Flask) API containerized and published automatically to **Amazon ECR Public** under the `connectbest` namespace.
+The **ConnectBest Chat Application** is a full-stack real-time chat platform with Next.js frontend and Flask backend, containerized and deployed to **AWS ECS Fargate** with multi-container architecture.
 
-This service provides a simple REST endpoint returning `"Hello from ConnectBest 👋"` and serves as part of a broader collection of ConnectBest microservices (`chat`, `summary`, `auth`, etc.), each built and deployed independently using **GitHub Actions + AWS OIDC** for secure, keyless CI/CD.
+This application provides secure team communication with real-time messaging, file sharing, and authentication, deployed automatically using **GitHub Actions + AWS CDK** for infrastructure as code.
 
 ---
 
