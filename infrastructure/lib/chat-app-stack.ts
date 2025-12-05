@@ -136,10 +136,10 @@ export class ChatAppStack extends cdk.Stack {
         JWT_SECRET_KEY: jwtSecretKey,
         SECRET_KEY: secretKey,
 
-        // CORS and URLs - includes both production domain and ALB for testing
-        CORS_ORIGINS: 'https://connect-best.com,http://chat-app-alb-2064082767.us-west-2.elb.amazonaws.com',
-        FRONTEND_URL: 'http://chat-app-alb-2064082767.us-west-2.elb.amazonaws.com',
-        NEXTAUTH_URL: 'http://chat-app-alb-2064082767.us-west-2.elb.amazonaws.com',
+        // CORS and URLs - now using HTTPS since we have SSL certificate
+        CORS_ORIGINS: 'https://connect-best.com,https://chat-app-alb-2064082767.us-west-2.elb.amazonaws.com',
+        FRONTEND_URL: 'https://chat-app-alb-2064082767.us-west-2.elb.amazonaws.com',
+        NEXTAUTH_URL: 'https://chat-app-alb-2064082767.us-west-2.elb.amazonaws.com',
         NEXTAUTH_SECRET: nextAuthSecret,
 
         // Google OAuth - using environment variables for security
