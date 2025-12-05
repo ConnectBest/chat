@@ -29,7 +29,9 @@
       "Bash(node -e:*)",
       "Bash(git rm:*)",
       "Bash(git ls-tree:*)",
-      "Bash(aws lightsail get-container-services:*)"
+      "Bash(aws lightsail get-container-services:*)",
+      "Bash(git reset:*)",
+      "Bash(gh workflow run:*)"
     ],
     "deny": [],
     "ask": []

@@ -180,7 +180,8 @@ jobs:
         run: |
           cd infrastructure
           npm config set registry https://registry.npmjs.org/
-          npm ci
+          rm -f package-lock.json
+          npm install
           npx cdk deploy --require-approval never
 
       - name: Wait for deployment to complete
