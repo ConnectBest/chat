@@ -4,7 +4,10 @@ import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
 
 // Backend API URL - Flask backend
-const BACKEND_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api';
+// In production, we need to call the backend directly (internal ALB routing)
+const BACKEND_API_URL = process.env.NODE_ENV === 'production'
+  ? 'https://chat.connect-best.com/api'
+  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api');
 
 // Extended user type with role and phone
 export interface ExtendedUser {
@@ -51,8 +54,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const { email, password } = parsedCredentials.data;
 
         try {
+          // Ensure we have a proper absolute URL for fetch
+          const backendUrl = BACKEND_API_URL.startsWith('http')
+            ? BACKEND_API_URL
+            : `https://chat.connect-best.com${BACKEND_API_URL}`;
+
           // Call Flask backend directly
-          const response = await fetch(`${BACKEND_API_URL}/auth/login`, {
+          const response = await fetch(`${backendUrl}/auth/login`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

@@ -12,7 +12,7 @@ This is a **full-stack real-time chat application** using a monorepo structure w
 - **Database**: MongoDB (with enhanced schema for threads, reactions, file attachments, embeddings)
 - **Real-time**: Socket.IO (eventlet async mode) + AWS WebSocket API (API Gateway + Lambda)
 - **Authentication**: NextAuth with Credentials + Google OAuth, JWT tokens, 2FA support
-- **Deployment**: Docker containers → AWS ECR Public → AWS Lightsail
+- **Deployment**: Docker containers → AWS ECR Public → AWS ECS Fargate
 
 ### Key Architectural Patterns
 
@@ -145,9 +145,10 @@ sam logs -n MessageFunction --stack-name connectbest-websocket --tail
 - `.env.example` and `backend/.env.example` - Template files with all required variables
 
 **Deployment**:
-- `Dockerfile` - Multi-stage build (Next.js → standalone deployment)
-- `.github/workflows/*.yml` - CI/CD pipeline (build → ECR Public → Lightsail)
-- `lightsail/` - AWS Lightsail deployment scripts
+- `Dockerfile.frontend` - Multi-stage build for Next.js frontend
+- `Dockerfile.backend` - Multi-stage build for Flask backend
+- `infrastructure/` - AWS CDK infrastructure as code for ECS Fargate
+- `.github/workflows/*.yml` - CI/CD pipeline (build → ECR Public → ECS via CDK)
 
 ## Critical Patterns to Follow
 

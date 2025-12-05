@@ -1,12 +1,14 @@
 import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
+import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import * as route53Targets from 'aws-cdk-lib/aws-route53-targets';
 import * as certificateManager from 'aws-cdk-lib/aws-certificatemanager';
+import * as ses from 'aws-cdk-lib/aws-ses';
 import { Construct } from 'constructs';
 
 export class ChatAppStack extends cdk.Stack {
@@ -32,6 +34,17 @@ export class ChatAppStack extends cdk.Stack {
       ]
     });
 
+    // SES Configuration for Email Verification
+    const sesIdentity = new ses.EmailIdentity(this, 'ChatAppEmailIdentity', {
+      identity: ses.Identity.email('noreply@connect-best.com'),
+      mailFromDomain: 'mail.connect-best.com' // Optional: custom MAIL FROM domain
+    });
+
+    // SES Configuration Set for tracking
+    const sesConfigurationSet = new ses.ConfigurationSet(this, 'ChatAppConfigurationSet', {
+      configurationSetName: 'chat-app-emails'
+    });
+
     // ECS Cluster
     const cluster = new ecs.Cluster(this, 'ChatAppCluster', {
       vpc,
@@ -46,31 +59,54 @@ export class ChatAppStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY
     });
 
+    // Create explicit execution role with ECR permissions
+    const executionRole = new iam.Role(this, 'ChatAppTaskExecutionRole', {
+      assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
+      description: 'Execution role for Chat App ECS tasks',
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy')
+      ]
+    });
+
+    // Add ECR permissions to execution role
+    executionRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'ecr:GetAuthorizationToken',
+        'ecr:BatchCheckLayerAvailability',
+        'ecr:GetDownloadUrlForLayer',
+        'ecr:BatchGetImage'
+      ],
+      resources: ['*']
+    }));
+
+    // Create IAM User for SES SMTP credentials
+    const sesSmtpUser = new iam.User(this, 'SesSmtpUser', {
+      userName: 'connectbest-ses-smtp-user'
+    });
+
+    // Add SES send permissions to the SMTP user
+    sesSmtpUser.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'ses:SendEmail',
+        'ses:SendRawEmail'
+      ],
+      resources: ['*']
+    }));
+
+    // Create access key for SMTP user (you'll need to retrieve these from AWS Console)
+    const sesAccessKey = new iam.AccessKey(this, 'SesSmtpAccessKey', {
+      user: sesSmtpUser
+    });
+
     // Task Definition for multi-container setup
     const taskDefinition = new ecs.FargateTaskDefinition(this, 'ChatAppTaskDef', {
       memoryLimitMiB: 2048,  // Increased for two containers
       cpu: 1024,             // Increased for two containers
-      family: 'chat-app'
+      family: 'chat-app',
+      executionRole: executionRole
     });
-
-    // Add ECR permissions to execution role
-    taskDefinition.executionRole?.addManagedPolicy(
-      iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy')
-    );
-
-    // Add additional ECR permissions
-    if (taskDefinition.executionRole) {
-      (taskDefinition.executionRole as iam.Role).addToPolicy(new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          'ecr:GetAuthorizationToken',
-          'ecr:BatchCheckLayerAvailability',
-          'ecr:GetDownloadUrlForLayer',
-          'ecr:BatchGetImage'
-        ],
-        resources: ['*']
-      }));
-    }
 
     // SECURITY: Get all sensitive values from environment variables only
     // DO NOT hardcode credentials in source code
@@ -94,9 +130,13 @@ export class ChatAppStack extends cdk.Stack {
       throw new Error('JWT_SECRET_KEY environment variable is required');
     }
 
+    // Create ECR repositories references
+    const frontendRepo = ecr.Repository.fromRepositoryName(this, 'FrontendRepo', 'chat-frontend');
+    const backendRepo = ecr.Repository.fromRepositoryName(this, 'BackendRepo', 'chat-backend');
+
     // Frontend Container (Next.js)
     const frontendContainer = taskDefinition.addContainer('FrontendContainer', {
-      image: ecs.ContainerImage.fromRegistry('839776274679.dkr.ecr.us-west-2.amazonaws.com/chat-frontend:latest'),
+      image: ecs.ContainerImage.fromEcrRepository(frontendRepo, 'latest'),
       memoryLimitMiB: 512,
       cpu: 256,
       logging: ecs.LogDrivers.awsLogs({
@@ -104,15 +144,27 @@ export class ChatAppStack extends cdk.Stack {
         logGroup: logGroup
       }),
       environment: {
+        // Basic Node.js settings
         NODE_ENV: 'production',
         PORT: '3000',
-        HOSTNAME: '0.0.0.0'
+        HOSTNAME: '0.0.0.0',
+
+        // Frontend API Configuration - CRITICAL for connecting to backend
+        NEXT_PUBLIC_API_URL: 'https://chat.connect-best.com/api',
+        NEXT_PUBLIC_WEBSOCKET_URL: 'wss://v68x792yd5.execute-api.us-west-2.amazonaws.com/prod',
+
+        // Google OAuth for NextAuth frontend
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '699045979125-v1tjnfluhmobrod8hogdbktqgi2vpv3t.apps.googleusercontent.com',
+
+        // NextAuth Configuration for frontend
+        NEXTAUTH_URL: 'https://chat.connect-best.com',
+        NEXTAUTH_SECRET: nextAuthSecret
       }
     });
 
     // Backend Container (Flask)
     const backendContainer = taskDefinition.addContainer('BackendContainer', {
-      image: ecs.ContainerImage.fromRegistry('839776274679.dkr.ecr.us-west-2.amazonaws.com/chat-backend:latest'),
+      image: ecs.ContainerImage.fromEcrRepository(backendRepo, 'latest'),
       memoryLimitMiB: 1536,
       cpu: 768,
       logging: ecs.LogDrivers.awsLogs({
@@ -136,10 +188,10 @@ export class ChatAppStack extends cdk.Stack {
         JWT_SECRET_KEY: jwtSecretKey,
         SECRET_KEY: secretKey,
 
-        // CORS and URLs - now using HTTPS since we have SSL certificate
-        CORS_ORIGINS: 'https://connect-best.com,https://chat-app-alb-2064082767.us-west-2.elb.amazonaws.com',
-        FRONTEND_URL: 'https://chat-app-alb-2064082767.us-west-2.elb.amazonaws.com',
-        NEXTAUTH_URL: 'https://chat-app-alb-2064082767.us-west-2.elb.amazonaws.com',
+        // CORS and URLs - using custom domain with HTTPS
+        CORS_ORIGINS: 'https://connect-best.com,https://chat.connect-best.com',
+        FRONTEND_URL: 'https://chat.connect-best.com',
+        NEXTAUTH_URL: 'https://chat.connect-best.com',
         NEXTAUTH_SECRET: nextAuthSecret,
 
         // Google OAuth - using environment variables for security
@@ -147,12 +199,12 @@ export class ChatAppStack extends cdk.Stack {
         GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || 'PLACEHOLDER_SECRET',
         GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI || 'https://connect-best.com/api/auth/google/callback',
 
-        // Email configuration (exact match from Lightsail)
-        EMAIL_HOST: 'smtp.gmail.com',
-        EMAIL_PORT: '587',
-        EMAIL_FROM: 'noreply@connectbest.com',
-        EMAIL_USER: '',  // null in Lightsail
-        EMAIL_PASSWORD: '',  // null in Lightsail
+        // Email configuration for verification emails - AWS SES
+        SMTP_HOST: process.env.EMAIL_HOST || 'email-smtp.us-west-2.amazonaws.com',
+        SMTP_PORT: process.env.EMAIL_PORT || '587',
+        SMTP_FROM_EMAIL: process.env.EMAIL_FROM || 'noreply@connect-best.com',
+        SMTP_USER: process.env.EMAIL_USER || '',
+        SMTP_PASSWORD: process.env.EMAIL_PASSWORD || '',
 
         // Upload configuration (exact match from Lightsail)
         MAX_CONTENT_LENGTH: '52428800',
@@ -246,15 +298,44 @@ export class ChatAppStack extends cdk.Stack {
       'Allow HTTPS traffic'
     );
 
-    // HTTP Listener - keep working for now, will redirect to HTTPS after certificate
+    // Import existing SSL certificate for chat.connect-best.com
+    const certificate = certificateManager.Certificate.fromCertificateArn(
+      this,
+      'ChatSSLCertificate',
+      'arn:aws:acm:us-west-2:839776274679:certificate/6f595dff-f4fb-4ee7-8d60-9e78bc7dbfb7'
+    );
+
+    // HTTP Listener - redirect to HTTPS
     const httpListener = alb.addListener('HttpListener', {
       port: 80,
       protocol: elbv2.ApplicationProtocol.HTTP,
+      defaultAction: elbv2.ListenerAction.redirect({
+        protocol: 'HTTPS',
+        port: '443',
+        permanent: true
+      })
+    });
+
+    // HTTPS Listener with SSL certificate
+    const httpsListener = alb.addListener('HttpsListener', {
+      port: 443,
+      protocol: elbv2.ApplicationProtocol.HTTPS,
+      certificates: [certificate],
       defaultAction: elbv2.ListenerAction.forward([frontendTargetGroup])
     });
 
-    // Add HTTP listener rule to route /api/* to backend
-    httpListener.addAction('ApiRoute', {
+    // Add HTTPS listener rules with correct priorities
+    // Priority 50: Route /api/auth/* to frontend (NextAuth)
+    httpsListener.addAction('NextAuthRoute', {
+      priority: 50,
+      conditions: [
+        elbv2.ListenerCondition.pathPatterns(['/api/auth/*'])
+      ],
+      action: elbv2.ListenerAction.forward([frontendTargetGroup])
+    });
+
+    // Priority 100: Route all other /api/* to backend (Flask)
+    httpsListener.addAction('ApiRoute', {
       priority: 100,
       conditions: [
         elbv2.ListenerCondition.pathPatterns(['/api/*'])
@@ -262,23 +343,20 @@ export class ChatAppStack extends cdk.Stack {
       action: elbv2.ListenerAction.forward([backendTargetGroup])
     });
 
-    // We'll add HTTPS listener after certificate is created manually
-    // This allows the ALB to be created first, then certificate added later
-
-    // Output the ALB DNS name for certificate creation
+    // Updated outputs for HTTPS with custom domain
     new cdk.CfnOutput(this, 'ApplicationURL', {
-      value: `http://${alb.loadBalancerDnsName}`,
-      description: 'Application URL (HTTP - will redirect to HTTPS when certificate is added)'
+      value: `https://chat.connect-best.com`,
+      description: 'Application URL (HTTPS with custom domain)'
     });
 
     new cdk.CfnOutput(this, 'ApplicationHTTPSURL', {
-      value: `https://${alb.loadBalancerDnsName}`,
-      description: 'Application URL (HTTPS - available after certificate is added)'
+      value: `https://chat.connect-best.com`,
+      description: 'Application HTTPS URL with SSL certificate'
     });
 
-    new cdk.CfnOutput(this, 'CertificateCommand', {
-      value: `aws acm request-certificate --domain-name "${alb.loadBalancerDnsName}" --validation-method DNS --region ${this.region}`,
-      description: 'Command to create SSL certificate'
+    new cdk.CfnOutput(this, 'LoadBalancerDNSForDNSRecord', {
+      value: alb.loadBalancerDnsName,
+      description: 'ALB DNS name for chat.connect-best.com CNAME record'
     });
 
     // Security Group for ECS Tasks
@@ -314,9 +392,16 @@ export class ChatAppStack extends cdk.Stack {
       securityGroups: [ecsSecurityGroup]
     });
 
-    // Attach service to both target groups
-    service.attachToApplicationTargetGroup(frontendTargetGroup);
-    service.attachToApplicationTargetGroup(backendTargetGroup);
+    // Attach service containers to their respective target groups
+    frontendTargetGroup.addTarget(service.loadBalancerTarget({
+      containerName: 'FrontendContainer',
+      containerPort: 3000
+    }));
+
+    backendTargetGroup.addTarget(service.loadBalancerTarget({
+      containerName: 'BackendContainer',
+      containerPort: 5001
+    }));
 
     // Auto Scaling
     const scaling = service.autoScaleTaskCount({
@@ -347,8 +432,34 @@ export class ChatAppStack extends cdk.Stack {
     });
 
     new cdk.CfnOutput(this, 'HealthCheckURL', {
-      value: `http://${alb.loadBalancerDnsName}/api/health`,
+      value: `https://chat.connect-best.com/api/health`,
       description: 'Health check URL for the application'
+    });
+
+    // SES Configuration Outputs
+    new cdk.CfnOutput(this, 'SesSmtpEndpoint', {
+      value: `email-smtp.${this.region}.amazonaws.com`,
+      description: 'SES SMTP endpoint for email configuration'
+    });
+
+    new cdk.CfnOutput(this, 'SesSmtpUsername', {
+      value: sesAccessKey.accessKeyId,
+      description: 'SES SMTP username (Access Key ID)'
+    });
+
+    new cdk.CfnOutput(this, 'SesSmtpPasswordSecret', {
+      value: sesAccessKey.secretAccessKey.unsafeUnwrap(),
+      description: '⚠️ SES SMTP password - store securely and update .env file'
+    });
+
+    new cdk.CfnOutput(this, 'SesEmailIdentity', {
+      value: 'noreply@connect-best.com',
+      description: 'Verified email identity for sending emails'
+    });
+
+    new cdk.CfnOutput(this, 'SesConfigurationInstructions', {
+      value: `Update infrastructure/.env with: EMAIL_USER="${sesAccessKey.accessKeyId}" EMAIL_PASSWORD="<get-from-above>"`,
+      description: 'SES configuration instructions for .env file'
     });
   }
 }

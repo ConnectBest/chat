@@ -33,7 +33,21 @@
       "Bash(git reset:*)",
       "Bash(gh workflow run:*)",
       "Bash(./architecture-overview.sh)",
-      "Bash(openssl req:*)"
+      "Bash(openssl req:*)",
+      "Bash(source .env)",
+      "Bash(npx cdk synth --quiet)",
+      "Bash(set -a)",
+      "Bash(set +a)",
+      "Bash(python -c:*)",
+      "Bash(find:*)",
+      "Bash(gh repo view:*)",
+      "Bash(gh workflow list:*)",
+      "Bash(gh workflow view:*)",
+      "Bash(gh variable list:*)",
+      "Bash(while read name date)",
+      "Bash(do echo \"=== $name ===\")",
+      "Bash(done)",
+      "Bash(gh secret set:*)"
     ],
     "deny": [],
     "ask": []
