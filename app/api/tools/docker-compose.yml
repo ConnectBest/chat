@@ -1,0 +1,64 @@
+# ==============================================================================
+# ConnectBest AI Agent - Docker Compose (Production Ready)
+# ==============================================================================
+# For AWS deployment: Environment variables are injected via:
+#   - AWS ECS Task Definitions
+#   - AWS Secrets Manager
+#   - GitHub Actions secrets -> AWS
+#
+# For local development: Use --env-file flag:
+#   docker-compose --env-file /path/to/.env up --build
+#
+# Endpoints:
+#   - POST /chat - AI agent chat
+#   - GET/POST /api/semantic-search - Vector search
+#   - GET /health - Health check
+#   - GET /tools - List available tools
+# ==============================================================================
+
+services:
+  ai-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_DATE: ${BUILD_DATE:-}
+        GIT_COMMIT: ${GIT_COMMIT:-}
+    image: ${AWS_ECR_REGISTRY:-connectbest}/ai-agent:${IMAGE_TAG:-latest}
+    container_name: connectbest-ai-agent
+    ports:
+      - "8001:8001"
+    environment:
+      # Required - MongoDB connection
+      - MONGO_URI=${MONGO_URI}
+      # Required - LLM API
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      # Optional - LangSmith observability
+      - LANGSMITH_API_KEY=${LANGSMITH_API_KEY:-}
+      - LANGSMITH_PROJECT=${LANGSMITH_PROJECT:-connectbest-agent}
+      # Optional - Zoom meeting integration
+      - ZOOM_ACCOUNT_ID=${ZOOM_ACCOUNT_ID:-}
+      - ZOOM_CLIENT_ID=${ZOOM_CLIENT_ID:-}
+      - ZOOM_CLIENT_SECRET=${ZOOM_CLIENT_SECRET:-}
+      # Optional - Gmail calendar integration
+      - GMAIL_CLIENT_ID=${GMAIL_CLIENT_ID:-}
+      - GMAIL_CLIENT_SECRET=${GMAIL_CLIENT_SECRET:-}
+      - GMAIL_REFRESH_TOKEN=${GMAIL_REFRESH_TOKEN:-}
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

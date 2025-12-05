@@ -1,0 +1,30 @@
+# ==============================================================================
+# ConnectBest AI Agent - Python Dependencies (Minimal)
+# ==============================================================================
+
+# FastAPI and server
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.9.0
+
+# LangChain ecosystem
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-groq>=0.2.0
+langgraph>=0.2.0
+
+# MongoDB
+pymongo>=4.9.0
+
+# Embeddings (FastEmbed - lightweight, no torch needed)
+fastembed>=0.4.0
+
+# Google APIs (for Gmail meeting invitations)
+google-auth>=2.35.0
+google-api-python-client>=2.149.0
+
+# HTTP client (for Zoom API)
+requests>=2.31.0
+
+# Environment
+python-dotenv>=1.0.0
