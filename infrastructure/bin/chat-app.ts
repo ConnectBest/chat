@@ -3,6 +3,13 @@ import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { ChatAppStack } from '../lib/chat-app-stack';
 
+// Declare process for TypeScript compatibility
+declare const process: {
+  env: {
+    [key: string]: string | undefined;
+  };
+};
+
 const app = new cdk.App();
 
 new ChatAppStack(app, 'ChatAppStack', {

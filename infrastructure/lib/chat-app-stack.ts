@@ -11,6 +11,13 @@ import * as certificateManager from 'aws-cdk-lib/aws-certificatemanager';
 import * as ses from 'aws-cdk-lib/aws-ses';
 import { Construct } from 'constructs';
 
+// Declare process for TypeScript compatibility
+declare const process: {
+  env: {
+    [key: string]: string | undefined;
+  };
+};
+
 export class ChatAppStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -53,7 +60,7 @@ export class ChatAppStack extends cdk.Stack {
     const cluster = new ecs.Cluster(this, 'ChatAppCluster', {
       vpc,
       clusterName: 'chat-app-cluster',
-      containerInsightsV2: ecs.ContainerInsights.ENABLED // Use new property
+      containerInsights: true // Enable Container Insights for monitoring
     });
 
     // CloudWatch Log Group
@@ -489,7 +496,7 @@ export class ChatAppStack extends cdk.Stack {
 
     // Email Configuration
     new cdk.CfnOutput(this, 'SesSmtpEndpoint', {
-      value: `email-smtp.${this.region}.amazonaws.com`,
+      value: `email-smtp.${cdk.Stack.of(this).region}.amazonaws.com`,
       description: '📧 SES SMTP server'
     });
 
