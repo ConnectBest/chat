@@ -194,6 +194,7 @@ jobs:
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REDIRECT_URI: https://chat.connect-best.com/api/auth/callback/google
           EMAIL_HOST: email-smtp.us-west-2.amazonaws.com
           EMAIL_PORT: 587
           EMAIL_FROM: michael_l_kennedy@me.com

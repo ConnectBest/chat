@@ -206,10 +206,15 @@ export class ChatAppStack extends cdk.Stack {
         // Internal container-to-container communication
         BACKEND_URL: 'http://localhost:5001', // Frontend calls backend internally
 
+        // MongoDB configuration for NextAuth direct connection
+        MONGODB_URI: mongoUri,
+        MONGODB_DB_NAME: 'chatapp',
+
         // Google OAuth for NextAuth frontend
         NEXT_PUBLIC_GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '699045979125-v1tjnfluhmobrod8hogdbktqgi2vpv3t.apps.googleusercontent.com',
         GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || '699045979125-v1tjnfluhmobrod8hogdbktqgi2vpv3t.apps.googleusercontent.com',
         GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || 'PLACEHOLDER_SECRET',
+        GOOGLE_REDIRECT_URI: process.env.GOOGLE_REDIRECT_URI || 'https://chat.connect-best.com/api/auth/callback/google',
 
         // NextAuth Configuration for frontend
         NEXTAUTH_URL: 'https://chat.connect-best.com',
