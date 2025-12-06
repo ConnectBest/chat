@@ -55,7 +55,7 @@ def create_app():
         r"/api/*": {
             "origins": app.config['CORS_ORIGINS'],
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-            "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
+            "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "X-User-ID", "X-User-Email", "X-User-Role"],
             "expose_headers": ["Content-Type", "Authorization"],
             "supports_credentials": True,
             "max_age": 3600  # Cache preflight requests for 1 hour
@@ -63,7 +63,7 @@ def create_app():
         r"/socket.io/*": {
             "origins": app.config['CORS_ORIGINS'],
             "methods": ["GET", "POST", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"],
+            "allow_headers": ["Content-Type", "Authorization", "X-User-ID", "X-User-Email", "X-User-Role"],
             "supports_credentials": True
         },
         r"/static/*": {

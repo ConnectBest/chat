@@ -8,6 +8,7 @@ from models.message import Message
 from models.channel import Channel
 from bson.objectid import ObjectId
 from datetime import datetime
+from utils.auth import token_required
 
 dm_ns = Namespace('dm', description='Direct messaging operations')
 
@@ -27,74 +28,56 @@ send_dm_model = dm_ns.model('SendDM', {
 @dm_ns.route('/users/<string:recipient_id>/messages')
 class DMMessageList(Resource):
     @dm_ns.doc(security='Bearer')
-    def get(self, recipient_id):
+    @token_required
+    def get(self, recipient_id, current_user):
         """Get direct messages with a specific user"""
-        auth_header = request.headers.get('Authorization')
-        if not auth_header:
-            return {'error': 'Unauthorized'}, 401
-        
         try:
-            token = auth_header.split()[1]
-            from utils.auth import verify_token
-            payload = verify_token(token)
-            if not payload:
-                return {'error': 'Invalid token'}, 401
-            
             db = current_app.db
-            sender_id = payload['user_id']
-            
+            sender_id = current_user['user_id']
+
             # Find or create DM channel between these two users
             dm_channel_id = self._get_or_create_dm_channel(db, sender_id, recipient_id)
-            
+
             if not dm_channel_id:
                 return {'error': 'Failed to create DM channel'}, 500
-            
+
             # Get messages from this DM channel
             message_model = Message(db)
             messages = message_model.list_channel_messages(dm_channel_id, limit=100)
-            
+
             return {'messages': messages, 'dm_channel_id': dm_channel_id}, 200
-            
+
         except Exception as e:
             current_app.logger.error(f"Error getting DMs: {str(e)}")
             return {'error': 'Failed to get messages'}, 500
-    
+
     @dm_ns.expect(send_dm_model)
     @dm_ns.doc(security='Bearer')
-    def post(self, recipient_id):
+    @token_required
+    def post(self, recipient_id, current_user):
         """Send a direct message to a specific user"""
-        auth_header = request.headers.get('Authorization')
-        if not auth_header:
-            return {'error': 'Unauthorized'}, 401
-        
         try:
-            token = auth_header.split()[1]
-            from utils.auth import verify_token
-            payload = verify_token(token)
-            if not payload:
-                return {'error': 'Invalid token'}, 401
-            
             data = request.get_json()
             content = data.get('content', '').strip()
             attachments = data.get('attachments', [])
-            
+
             if not content:
                 return {'error': 'Message content is required'}, 400
-            
+
             db = current_app.db
-            sender_id = payload['user_id']
-            
+            sender_id = current_user['user_id']
+
             # Validate recipient exists
             recipient = db.users.find_one({'_id': ObjectId(recipient_id)})
             if not recipient:
                 return {'error': 'Recipient not found'}, 404
-            
+
             # Find or create DM channel between these two users
             dm_channel_id = self._get_or_create_dm_channel(db, sender_id, recipient_id)
-            
+
             if not dm_channel_id:
                 return {'error': 'Failed to create DM channel'}, 500
-            
+
             # Send message
             message_model = Message(db)
             message = message_model.create(
@@ -103,9 +86,9 @@ class DMMessageList(Resource):
                 content=content,
                 attachments=attachments
             )
-            
+
             return {'message': message, 'dm_channel_id': dm_channel_id}, 201
-            
+
         except Exception as e:
             current_app.logger.error(f"Error sending DM: {str(e)}")
             return {'error': 'Failed to send message'}, 500
@@ -149,24 +132,12 @@ class DMMessageList(Resource):
 @dm_ns.route('/conversations')
 class DMConversationList(Resource):
     @dm_ns.doc(security='Bearer')
-    def get(self):
+    @token_required
+    def get(self, current_user):
         """Get all DM conversations for the current user"""
-        auth_header = request.headers.get('Authorization')
-        if not auth_header:
-            return {'error': 'Unauthorized'}, 401
-        
         try:
-            # Handle both "Bearer token" and just "token" formats
-            token_parts = auth_header.split()
-            token = token_parts[1] if len(token_parts) > 1 else token_parts[0]
-            
-            from utils.auth import verify_token
-            payload = verify_token(token)
-            if not payload:
-                return {'error': 'Invalid token'}, 401
-            
             db = current_app.db
-            user_id = payload['user_id']
+            user_id = current_user['user_id']
             
             # Optimized: Single aggregation pipeline instead of N+1 queries
             # This replaces the old loop that was making 2 queries per DM channel
@@ -419,32 +390,23 @@ class DMConversationList(Resource):
 @dm_ns.route('/channels/<string:dm_channel_id>/read')
 class DMRead(Resource):
     @dm_ns.doc(security='Bearer')
-    def post(self, dm_channel_id):
+    @token_required
+    def post(self, dm_channel_id, current_user):
         """Mark DM messages as read"""
-        auth_header = request.headers.get('Authorization')
-        if not auth_header:
-            return {'error': 'Unauthorized'}, 401
-        
         try:
-            token = auth_header.split()[1]
-            from utils.auth import verify_token
-            payload = verify_token(token)
-            if not payload:
-                return {'error': 'Invalid token'}, 401
-            
             db = current_app.db
             channel_model = Channel(db)
-            
+
             # Verify user is member of DM channel
-            if not channel_model.is_member(dm_channel_id, payload['user_id']):
+            if not channel_model.is_member(dm_channel_id, current_user['user_id']):
                 return {'error': 'Not a member of this conversation'}, 403
-            
+
             # Mark as read
             from models.user_channel_read import UserChannelRead
             read_tracker = UserChannelRead(db)
-            result = read_tracker.mark_as_read(payload['user_id'], dm_channel_id)
-            
-            current_app.logger.info(f"✅ Marked DM channel {dm_channel_id} as read for user {payload['user_id']}")
+            result = read_tracker.mark_as_read(current_user['user_id'], dm_channel_id)
+
+            current_app.logger.info(f"✅ Marked DM channel {dm_channel_id} as read for user {current_user['user_id']}")
             return {'message': 'Marked as read', 'data': result}, 200
         except Exception as e:
             current_app.logger.error(f"Error marking DM as read: {str(e)}")
