@@ -10,7 +10,7 @@ from flask_restx import Namespace, Resource
 import secrets
 from models.user import User
 from utils.google_oauth import create_google_oauth_instance
-from utils.auth import generate_token
+from utils.auth import generate_token, token_required
 
 
 def register_google_routes(namespace):
@@ -230,61 +230,50 @@ def register_google_routes(namespace):
     @namespace.route('/google/link')
     class LinkGoogleAccount(Resource):
         @namespace.doc(security='Bearer')
-        def post(self):
+        @token_required
+        def post(self, current_user):
             """
             Link Google account to existing user
-            
+
             Requires authentication
             Body should contain Google ID token
             """
-            auth_header = request.headers.get('Authorization')
-            if not auth_header:
-                return {'error': 'Missing authorization header'}, 401
-            
-            try:
-                from utils.auth import decode_token
-                token = auth_header.split(' ')[1] if ' ' in auth_header else auth_header
-                payload = decode_token(token)
-                user_id = payload.get('user_id')
-            except Exception:
-                return {'error': 'Invalid token'}, 401
-            
             data = request.get_json()
             id_token = data.get('id_token')
-            
+
             if not id_token:
                 return {'error': 'Missing ID token'}, 400
-            
+
             # Verify ID token
             google_oauth = create_google_oauth_instance()
             if not google_oauth:
                 return {'error': 'Google OAuth not configured'}, 500
-            
+
             token_info = google_oauth.verify_id_token(id_token)
             if not token_info:
                 return {'error': 'Invalid ID token'}, 401
-            
+
             google_id = token_info.get('sub')
             google_email = token_info.get('email')
-            
+
             # Update user with Google ID
             db = current_app.db
             user_model = User(db)
-            
+
             # Check if Google ID is already linked to another user
             existing = user_model.collection.find_one({'google_id': google_id})
-            if existing and str(existing['_id']) != user_id:
+            if existing and str(existing['_id']) != current_user['user_id']:
                 return {'error': 'Google account already linked to another user'}, 400
-            
+
             # Update user
             user_model.collection.update_one(
-                {'_id': user_model._to_object_id(user_id)},
+                {'_id': user_model._to_object_id(current_user['user_id'])},
                 {'$set': {
                     'google_id': google_id,
                     'oauth_provider': 'google'
                 }}
             )
-            
+
             return {
                 'success': True,
                 'message': 'Google account linked successfully',
