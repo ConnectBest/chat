@@ -1,4 +1,7 @@
 "use client";
+// TODO: Refactor this component to use NextAuth session and Next.js API routes
+// Currently uses localStorage tokens and direct Flask API calls
+// See: lib/useAuth.ts for NextAuth integration pattern
 import React, { useEffect, useState, useRef } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
