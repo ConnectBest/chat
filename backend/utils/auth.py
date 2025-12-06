@@ -1,11 +1,11 @@
 """
 Authentication Utilities
 
-This module handles NextAuth JWT token verification.
+This module handles NextAuth session validation via user headers.
 
 LEARNING NOTE:
-- Now validates NextAuth.js JWT tokens instead of custom tokens
-- NextAuth tokens are signed with NEXTAUTH_SECRET
+- NextAuth session verification is handled at Next.js API route level
+- Flask receives validated user information via headers
 - Provides seamless integration between Next.js frontend and Flask backend
 """
 
@@ -18,20 +18,11 @@ from typing import Optional, Dict, Any
 
 def verify_nextauth_token(token: str) -> Optional[Dict[str, Any]]:
     """
-    Verify and decode a NextAuth JWT token.
+    DEPRECATED: Verify and decode a NextAuth JWT token.
 
-    LEARNING NOTE:
-    - NextAuth uses NEXTAUTH_SECRET for signing tokens
-    - Token payload structure differs from custom JWT
-    - Contains user info from NextAuth session
-
-    Args:
-        token: NextAuth JWT token string
-
-    Returns:
-        dict: Decoded user payload if valid, None otherwise
+    This function is kept for backward compatibility.
+    New authentication flow uses user headers from Next.js API routes.
     """
-
     try:
         # Get NextAuth secret from environment
         nextauth_secret = current_app.config.get('NEXTAUTH_SECRET')
@@ -41,7 +32,6 @@ def verify_nextauth_token(token: str) -> Optional[Dict[str, Any]]:
             return None
 
         # Decode and verify NextAuth token
-        # NextAuth uses HS256 algorithm by default
         payload = jwt.decode(
             token,
             nextauth_secret,
@@ -52,7 +42,6 @@ def verify_nextauth_token(token: str) -> Optional[Dict[str, Any]]:
         current_app.logger.info(f'✅ Verified NextAuth token for user: {payload.get("email", "unknown")}')
 
         # Extract user information from NextAuth token payload
-        # NextAuth tokens have different structure than custom tokens
         user_info = {
             'user_id': payload.get('id') or payload.get('sub'),
             'email': payload.get('email'),
@@ -68,13 +57,44 @@ def verify_nextauth_token(token: str) -> Optional[Dict[str, Any]]:
     except jwt.ExpiredSignatureError:
         current_app.logger.warning('NextAuth token has expired')
         return None
-
     except jwt.InvalidTokenError as e:
         current_app.logger.warning(f'Invalid NextAuth token: {str(e)}')
         return None
-
     except Exception as e:
         current_app.logger.error(f'Error verifying NextAuth token: {str(e)}')
+        return None
+
+
+def extract_user_from_headers() -> Optional[Dict[str, Any]]:
+    """
+    Extract user information from NextAuth session headers.
+
+    LEARNING NOTE:
+    - Next.js API routes validate NextAuth session server-side
+    - User information is passed via custom headers
+    - More secure than client-side JWT handling
+    """
+    try:
+        user_id = request.headers.get('X-User-ID')
+        user_email = request.headers.get('X-User-Email')
+        user_role = request.headers.get('X-User-Role', 'user')
+
+        if not user_id or not user_email:
+            current_app.logger.warning('Missing required user headers')
+            return None
+
+        user_info = {
+            'user_id': user_id,
+            'email': user_email,
+            'role': user_role,
+            'name': user_email.split('@')[0],  # Fallback name
+        }
+
+        current_app.logger.info(f'✅ Extracted user from headers: {user_email}')
+        return user_info
+
+    except Exception as e:
+        current_app.logger.error(f'Error extracting user from headers: {str(e)}')
         return None
 
 
@@ -83,14 +103,14 @@ def token_required(f):
     Decorator to protect routes that require NextAuth authentication.
 
     LEARNING NOTE:
-    - Updated to verify NextAuth JWT tokens
+    - Updated to use user headers from Next.js API routes
+    - Falls back to JWT token validation for direct API access
     - Provides seamless auth integration with Next.js frontend
-    - Maintains same interface for Flask routes
 
     Usage:
         @token_required
         def protected_route():
-            # This route requires valid NextAuth token
+            # This route requires valid NextAuth session
             pass
 
     Args:
@@ -103,23 +123,29 @@ def token_required(f):
     @wraps(f)  # Preserves original function metadata
     def decorated(*args, **kwargs):
         """
-        Wrapper function that performs NextAuth token validation.
+        Wrapper function that performs NextAuth session validation.
         """
 
-        # Get token from Authorization header
-        # Expected format: "Bearer <nextauth-token>"
+        # First try to get user from headers (Next.js API route approach)
+        user_payload = extract_user_from_headers()
+
+        if user_payload:
+            # Add user info to request context
+            request.current_user = user_payload
+            return f(*args, **kwargs)
+
+        # Fallback: try JWT token validation for direct API access
         auth_header = request.headers.get('Authorization')
 
         if not auth_header:
-            current_app.logger.warning('Missing Authorization header')
+            current_app.logger.warning('Missing user headers and Authorization header')
             return jsonify({
                 'error': 'Unauthorized',
-                'message': 'Authorization header is missing'
+                'message': 'Authentication required'
             }), 401
 
         # Parse token from header
         try:
-            # Split "Bearer <token>" and get token part
             token_parts = auth_header.split()
 
             if len(token_parts) != 2 or token_parts[0].lower() != 'bearer':
@@ -138,18 +164,17 @@ def token_required(f):
                 'message': 'Invalid authorization header'
             }), 401
 
-        # Verify NextAuth token
+        # Verify JWT token (fallback)
         user_payload = verify_nextauth_token(token)
 
         if not user_payload:
-            current_app.logger.warning('Invalid or expired NextAuth token')
+            current_app.logger.warning('Invalid or expired token')
             return jsonify({
                 'error': 'Unauthorized',
                 'message': 'Invalid or expired token'
             }), 401
 
         # Add user info to request context
-        # This makes user data available in route function
         request.current_user = user_payload
 
         # Call the original function
@@ -162,7 +187,7 @@ def admin_required(f):
     """
     Decorator to protect routes that require admin role.
 
-    Updated to work with NextAuth tokens.
+    Updated to work with NextAuth user headers and token fallback.
 
     Usage:
         @admin_required
@@ -180,48 +205,51 @@ def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         """
-        Wrapper function that checks admin role using NextAuth token.
+        Wrapper function that checks admin role using NextAuth session.
         """
 
-        # First check if user is authenticated
-        auth_header = request.headers.get('Authorization')
+        # First try to get user from headers
+        user_payload = extract_user_from_headers()
 
-        if not auth_header:
-            return jsonify({
-                'error': 'Unauthorized',
-                'message': 'Authorization header is missing'
-            }), 401
+        if not user_payload:
+            # Fallback: try JWT token validation
+            auth_header = request.headers.get('Authorization')
 
-        # Parse and verify NextAuth token
-        try:
-            token = auth_header.split()[1]
-            user_payload = verify_nextauth_token(token)
-
-            if not user_payload:
+            if not auth_header:
                 return jsonify({
                     'error': 'Unauthorized',
-                    'message': 'Invalid or expired token'
+                    'message': 'Authentication required'
                 }), 401
 
-            # Check if user has admin role
-            if user_payload.get('role') != 'admin':
-                current_app.logger.warning(f'Non-admin user {user_payload.get("email")} attempted admin access')
+            try:
+                token = auth_header.split()[1]
+                user_payload = verify_nextauth_token(token)
+
+                if not user_payload:
+                    return jsonify({
+                        'error': 'Unauthorized',
+                        'message': 'Invalid or expired token'
+                    }), 401
+
+            except Exception as e:
+                current_app.logger.warning(f'Error in admin_required decorator: {str(e)}')
                 return jsonify({
-                    'error': 'Forbidden',
-                    'message': 'Admin access required'
-                }), 403
+                    'error': 'Unauthorized',
+                    'message': 'Invalid authorization header'
+                }), 401
 
-            # Add user info to request
-            request.current_user = user_payload
-
-            return f(*args, **kwargs)
-
-        except Exception as e:
-            current_app.logger.warning(f'Error in admin_required decorator: {str(e)}')
+        # Check if user has admin role
+        if user_payload.get('role') != 'admin':
+            current_app.logger.warning(f'Non-admin user {user_payload.get("email")} attempted admin access')
             return jsonify({
-                'error': 'Unauthorized',
-                'message': 'Invalid authorization header'
-            }), 401
+                'error': 'Forbidden',
+                'message': 'Admin access required'
+            }), 403
+
+        # Add user info to request
+        request.current_user = user_payload
+
+        return f(*args, **kwargs)
 
     return decorated
 
@@ -231,7 +259,7 @@ def get_current_user() -> Optional[Dict[str, Any]]:
     Get current authenticated user from request context.
 
     Returns:
-        dict: Current user payload from NextAuth token or None
+        dict: Current user payload from NextAuth session or None
     """
     return getattr(request, 'current_user', None)
 
