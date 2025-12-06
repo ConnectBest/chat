@@ -132,6 +132,8 @@ def token_required(f):
         if user_payload:
             # Add user info to request context
             request.current_user = user_payload
+            # Pass current_user as keyword argument to the wrapped function
+            kwargs['current_user'] = user_payload
             return f(*args, **kwargs)
 
         # Fallback: try JWT token validation for direct API access
@@ -176,6 +178,9 @@ def token_required(f):
 
         # Add user info to request context
         request.current_user = user_payload
+
+        # Pass current_user as keyword argument to the wrapped function
+        kwargs['current_user'] = user_payload
 
         # Call the original function
         return f(*args, **kwargs)
@@ -248,6 +253,9 @@ def admin_required(f):
 
         # Add user info to request
         request.current_user = user_payload
+
+        # Pass current_user as keyword argument to the wrapped function
+        kwargs['current_user'] = user_payload
 
         return f(*args, **kwargs)
 
