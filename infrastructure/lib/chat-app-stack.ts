@@ -58,6 +58,33 @@ export class ChatAppStack extends cdk.Stack {
       configurationSetName: 'chat-app-emails'
     });
 
+    // S3 Bucket for file storage (avatars, message attachments)
+    const fileStorageBucket = new s3.Bucket(this, 'ChatAppFileStorage', {
+      bucketName: 'connectbest-chat-files',
+      publicReadAccess: true, // Allow public read access for file sharing
+      blockPublicAccess: {
+        blockPublicAcls: false,
+        ignorePublicAcls: false,
+        blockPublicPolicy: false,
+        restrictPublicBuckets: false
+      },
+      cors: [
+        {
+          allowedMethods: [s3.HttpMethods.GET, s3.HttpMethods.PUT, s3.HttpMethods.POST, s3.HttpMethods.DELETE],
+          allowedOrigins: ['*'], // In production, restrict to your domain
+          allowedHeaders: ['*'],
+          exposedHeaders: ['ETag']
+        }
+      ],
+      lifecycleRules: [
+        {
+          // Clean up multipart uploads after 7 days
+          abortIncompleteMultipartUploadAfter: cdk.Duration.days(7)
+        }
+      ],
+      removalPolicy: cdk.RemovalPolicy.RETAIN // Keep files when stack is deleted
+    });
+
     // ECS Cluster
     const cluster = new ecs.Cluster(this, 'ChatAppCluster', {
       vpc,
@@ -127,6 +154,22 @@ export class ChatAppStack extends cdk.Stack {
         'elasticloadbalancing:DescribeTargetHealth'
       ],
       resources: ['*']
+    }));
+
+    // Add S3 permissions for file storage
+    taskRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        's3:GetObject',
+        's3:PutObject',
+        's3:PutObjectAcl',
+        's3:DeleteObject',
+        's3:ListBucket'
+      ],
+      resources: [
+        fileStorageBucket.bucketArn,
+        `${fileStorageBucket.bucketArn}/*`
+      ]
     }));
 
     // Create IAM User for SES SMTP credentials
@@ -219,7 +262,7 @@ export class ChatAppStack extends cdk.Stack {
         // NextAuth Configuration for frontend
         NEXTAUTH_URL: 'https://chat.connect-best.com',
         NEXTAUTH_SECRET: nextAuthSecret,
-        NEXTAUTH_DEBUG: 'true' // Enable NextAuth debug logging
+        NEXTAUTH_DEBUG: 'false' // Disable NextAuth debug logging (production ready)
       }
     });
 
@@ -236,7 +279,7 @@ export class ChatAppStack extends cdk.Stack {
         // Core Flask settings
         FLASK_ENV: 'production',
         DEBUG: 'False',
-        LOG_LEVEL: 'DEBUG', // Enable detailed Flask logging
+        LOG_LEVEL: 'INFO', // Production info-level logging (was DEBUG)
         HOST: '0.0.0.0',
         PORT: '5001',
         PYTHONUNBUFFERED: '1',
@@ -268,9 +311,9 @@ export class ChatAppStack extends cdk.Stack {
         SMTP_USER: process.env.EMAIL_USER || '',
         SMTP_PASSWORD: process.env.EMAIL_PASSWORD || '',
 
-        // Upload configuration (exact match from Lightsail)
+        // Upload configuration - S3 for production (replaces local storage)
+        S3_BUCKET_NAME: fileStorageBucket.bucketName,
         MAX_CONTENT_LENGTH: '52428800',
-        UPLOAD_FOLDER: 'static/uploads',
 
         // WebSocket URL (exact match from Lightsail)
         NEXT_PUBLIC_WEBSOCKET_URL: 'wss://v68x792yd5.execute-api.us-west-2.amazonaws.com/prod',
@@ -840,6 +883,17 @@ export class ChatAppStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'DeployedImageTags', {
       value: `Frontend: ${frontendImageTag}, Backend: ${backendImageTag}`,
       description: '🏷️ Container image tags deployed in this stack'
+    });
+
+    // S3 File Storage Information
+    new cdk.CfnOutput(this, 'FileStorageBucket', {
+      value: fileStorageBucket.bucketName,
+      description: '📁 S3 bucket for file attachments and avatars'
+    });
+
+    new cdk.CfnOutput(this, 'FileStorageUrl', {
+      value: `https://${fileStorageBucket.bucketName}.s3.${cdk.Stack.of(this).region}.amazonaws.com/`,
+      description: '🔗 S3 bucket URL for file access'
     });
   }
 }

@@ -44,11 +44,6 @@ def create_app():
     logging.getLogger().setLevel(config.get_log_level())
     logger.info(f"Logging level set to: {config.LOG_LEVEL}")
 
-    # Configure upload folder
-    STATIC_FOLDER = os.path.join(os.path.dirname(__file__), 'static')
-    app.config['STATIC_FOLDER'] = STATIC_FOLDER
-    os.makedirs(os.path.join(STATIC_FOLDER, 'uploads', 'avatars'), exist_ok=True)
-    
     # Initialize CORS (Cross-Origin Resource Sharing)
     # This allows frontend running on different port/domain to access API
     CORS(app, resources={
@@ -260,9 +255,9 @@ def create_app():
     api.add_namespace(dm_ns, path='/dm')
     api.add_namespace(metrics_ns, path='/metrics')
     
-    # Register upload blueprint
-    from routes.upload import upload_bp
-    app.register_blueprint(upload_bp, url_prefix='/api/upload')
+    # Register upload blueprint (S3 for production)
+    from routes.upload_s3 import upload_s3_bp
+    app.register_blueprint(upload_s3_bp, url_prefix='/api/upload')
     
     # Socket.IO event handlers
     @socketio.on('connect')
@@ -292,16 +287,10 @@ def create_app():
         if channel_id:
             leave_room(channel_id)
             logger.info(f'Client {request.sid} left channel {channel_id}')
-    
-    # Static file serving for uploaded images
-    @app.route('/static/uploads/<path:subpath>/<filename>')
-    def serve_uploads(subpath, filename):
-        """Serve uploaded files"""
-        return send_from_directory(os.path.join(app.config['STATIC_FOLDER'], 'uploads', subpath), filename)
-    
+
     # Google OAuth routes are registered within auth_ns
     # Available at: /api/auth/google and /api/auth/google/callback
-    
+
     # Health check endpoint
     @app.route('/api/health', methods=['GET'])
     def health_check():
@@ -390,14 +379,6 @@ def create_app():
             'documentation': '/docs',
             'health': '/api/health'
         })
-    
-    # Serve uploaded files (avatars, attachments)
-    @app.route('/uploads/<path:filename>')
-    def uploaded_file(filename):
-        """Serve uploaded files"""
-        upload_dir = os.path.join(os.path.dirname(__file__), 'uploads')
-        return send_from_directory(upload_dir, filename)
-    
     # Global error handlers
     @app.errorhandler(404)
     def not_found(error):

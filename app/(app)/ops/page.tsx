@@ -20,6 +20,45 @@ interface Metrics {
   memoryUsage: number;
 }
 
+// Enterprise-Grade Monitoring Interfaces for Production Operations
+interface CloudWatchAlarm {
+  name: string;
+  state: 'OK' | 'ALARM' | 'INSUFFICIENT_DATA';
+  reason: string;
+  timestamp: string;
+  threshold: number;
+  metric: string;
+}
+
+interface CostMetrics {
+  dailyCost: number;
+  monthlyCost: number;
+  costTrend: 'increasing' | 'decreasing' | 'stable';
+  topServices: { service: string; cost: number }[];
+  optimization: { type: string; description: string; potentialSavings: number }[];
+}
+
+interface SecurityMetrics {
+  threatsBlocked: number;
+  suspiciousActivity: number;
+  authenticationFailures: number;
+  complianceScore: number;
+  lastSecurityScan: string;
+}
+
+interface LogsInsights {
+  errorCount: number;
+  warningCount: number;
+  topErrors: { error: string; count: number; firstSeen: string }[];
+  performanceInsights: { insight: string; severity: string; recommendation: string }[];
+  userActivity: {
+    activeUsers: number;
+    peakHour: string;
+    messagesSentLastHour: number;
+    newRegistrations: number;
+  };
+}
+
 export default function OpsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -29,6 +68,12 @@ export default function OpsPage() {
   const [connectionData, setConnectionData] = useState<any[]>([]);
   const [errorData, setErrorData] = useState<any[]>([]);
   const [autoRefresh, setAutoRefresh] = useState(true);
+
+  // Enterprise-Grade Monitoring State
+  const [alarms, setAlarms] = useState<CloudWatchAlarm[]>([]);
+  const [costs, setCosts] = useState<CostMetrics | null>(null);
+  const [security, setSecurity] = useState<SecurityMetrics | null>(null);
+  const [logsInsights, setLogsInsights] = useState<LogsInsights | null>(null);
 
   // Check admin access
   useEffect(() => {
@@ -147,6 +192,51 @@ export default function OpsPage() {
         }
       } catch (error) {
         console.error('Failed to fetch errors data:', error);
+      }
+
+      // Fetch enterprise-grade monitoring data
+      try {
+        // Fetch CloudWatch alarms
+        const alarmsResponse = await fetch('/api/metrics/alarms');
+        if (alarmsResponse.ok) {
+          const alarmsData = await alarmsResponse.json();
+          setAlarms(Array.isArray(alarmsData) ? alarmsData : []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch CloudWatch alarms:', error);
+      }
+
+      try {
+        // Fetch cost metrics
+        const costsResponse = await fetch('/api/metrics/costs');
+        if (costsResponse.ok) {
+          const costsData = await costsResponse.json();
+          setCosts(costsData);
+        }
+      } catch (error) {
+        console.error('Failed to fetch cost metrics:', error);
+      }
+
+      try {
+        // Fetch security metrics
+        const securityResponse = await fetch('/api/metrics/security');
+        if (securityResponse.ok) {
+          const securityData = await securityResponse.json();
+          setSecurity(securityData);
+        }
+      } catch (error) {
+        console.error('Failed to fetch security metrics:', error);
+      }
+
+      try {
+        // Fetch logs insights
+        const logsResponse = await fetch('/api/metrics/logs-insights');
+        if (logsResponse.ok) {
+          const logsData = await logsResponse.json();
+          setLogsInsights(logsData);
+        }
+      } catch (error) {
+        console.error('Failed to fetch logs insights:', error);
       }
 
     } catch (error) {
@@ -376,8 +466,268 @@ export default function OpsPage() {
           </ResponsiveContainer>
         </div>
 
-        <p className="text-white/40 text-xs text-center">
-        </p>
+        {/* Enterprise Monitoring Sections */}
+
+        {/* CloudWatch Alarms */}
+        {alarms && alarms.length > 0 && (
+          <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6 mb-6">
+            <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+              🚨 CloudWatch Alarms
+              <span className="text-xs bg-brand-600 px-2 py-1 rounded">AWS Managed</span>
+            </h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {alarms.map((alarm, index) => {
+                const stateColor = alarm.state === 'OK' ? 'text-green-400' :
+                                 alarm.state === 'ALARM' ? 'text-red-400' : 'text-yellow-400';
+                const bgColor = alarm.state === 'OK' ? 'bg-green-500/20' :
+                               alarm.state === 'ALARM' ? 'bg-red-500/20' : 'bg-yellow-500/20';
+
+                return (
+                  <div key={index} className={`${bgColor} rounded-lg p-4 border border-white/10`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium text-white">{alarm.name}</span>
+                      <span className={`${stateColor} font-bold text-sm`}>{alarm.state}</span>
+                    </div>
+                    <div className="text-white/60 text-sm mb-1">
+                      Metric: {alarm.metric} | Threshold: {alarm.threshold}
+                    </div>
+                    <div className="text-white/40 text-xs">
+                      {alarm.reason}
+                    </div>
+                    <div className="text-white/30 text-xs mt-2">
+                      {new Date(alarm.timestamp).toLocaleString()}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Cost Optimization Dashboard */}
+        {costs && (
+          <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6 mb-6">
+            <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+              💰 Cost Analytics & Optimization
+              <span className="text-xs bg-emerald-600 px-2 py-1 rounded">AWS Cost Explorer</span>
+            </h3>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Cost Summary */}
+              <div className="space-y-4">
+                <div className="bg-white/5 rounded-lg p-4">
+                  <div className="text-white/60 text-sm mb-1">Daily Cost</div>
+                  <div className="text-2xl font-bold text-white">${costs.dailyCost.toFixed(2)}</div>
+                  <div className={`text-sm mt-1 ${
+                    costs.costTrend === 'increasing' ? 'text-red-400' :
+                    costs.costTrend === 'decreasing' ? 'text-green-400' : 'text-blue-400'
+                  }`}>
+                    {costs.costTrend === 'increasing' ? '↗ Trending up' :
+                     costs.costTrend === 'decreasing' ? '↘ Trending down' : '→ Stable'}
+                  </div>
+                </div>
+
+                <div className="bg-white/5 rounded-lg p-4">
+                  <div className="text-white/60 text-sm mb-1">Monthly Projection</div>
+                  <div className="text-2xl font-bold text-white">${costs.monthlyCost.toFixed(2)}</div>
+                  <div className="text-white/40 text-xs mt-1">Based on current usage</div>
+                </div>
+              </div>
+
+              {/* Top Services */}
+              <div className="bg-white/5 rounded-lg p-4">
+                <h4 className="text-white font-medium mb-3">Top Cost Drivers</h4>
+                <div className="space-y-3">
+                  {costs.topServices.map((service, index) => (
+                    <div key={index} className="flex justify-between items-center">
+                      <span className="text-white/80 text-sm">{service.service}</span>
+                      <span className="text-white font-medium">${service.cost.toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Cost visualization */}
+                <div className="mt-4">
+                  <ResponsiveContainer width="100%" height={120}>
+                    <PieChart>
+                      <Pie
+                        data={costs.topServices}
+                        dataKey="cost"
+                        nameKey="service"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={40}
+                        fill="#3b82f6"
+                      >
+                        {costs.topServices.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={['#3b82f6', '#10b981', '#f59e0b', '#ef4444'][index % 4]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #ffffff20', borderRadius: '8px' }}
+                        labelStyle={{ color: '#ffffff' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Optimization Recommendations */}
+              <div className="bg-white/5 rounded-lg p-4">
+                <h4 className="text-white font-medium mb-3">💡 Optimization Opportunities</h4>
+                <div className="space-y-3">
+                  {costs.optimization.map((opt, index) => (
+                    <div key={index} className="bg-emerald-500/10 border border-emerald-500/20 rounded p-3">
+                      <div className="text-emerald-400 font-medium text-sm">{opt.type}</div>
+                      <div className="text-white/80 text-xs mt-1">{opt.description}</div>
+                      <div className="text-emerald-300 font-bold text-sm mt-2">
+                        Save ${opt.potentialSavings.toFixed(2)}/month
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Security Dashboard */}
+        {security && (
+          <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6 mb-6">
+            <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+              🛡️ Security Monitoring
+              <span className="text-xs bg-purple-600 px-2 py-1 rounded">AWS Security Hub</span>
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-red-400 font-medium">Threats Blocked</span>
+                  <span className="text-2xl">🚫</span>
+                </div>
+                <div className="text-2xl font-bold text-white">{security.threatsBlocked}</div>
+                <div className="text-red-300 text-xs mt-1">Last 24 hours</div>
+              </div>
+
+              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-yellow-400 font-medium">Suspicious Activity</span>
+                  <span className="text-2xl">⚠️</span>
+                </div>
+                <div className="text-2xl font-bold text-white">{security.suspiciousActivity}</div>
+                <div className="text-yellow-300 text-xs mt-1">Requires investigation</div>
+              </div>
+
+              <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-orange-400 font-medium">Auth Failures</span>
+                  <span className="text-2xl">🔐</span>
+                </div>
+                <div className="text-2xl font-bold text-white">{security.authenticationFailures}</div>
+                <div className="text-orange-300 text-xs mt-1">Failed login attempts</div>
+              </div>
+
+              <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-green-400 font-medium">Compliance Score</span>
+                  <span className="text-2xl">✅</span>
+                </div>
+                <div className="text-2xl font-bold text-white">{security.complianceScore}%</div>
+                <div className="text-green-300 text-xs mt-1">
+                  Last scan: {new Date(security.lastSecurityScan).toLocaleDateString()}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Logs Insights Dashboard */}
+        {logsInsights && (
+          <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6 mb-6">
+            <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+              📊 Logs Insights & Analytics
+              <span className="text-xs bg-indigo-600 px-2 py-1 rounded">CloudWatch Logs</span>
+            </h3>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Error Analysis */}
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
+                    <div className="text-red-400 font-medium text-sm">Errors (24h)</div>
+                    <div className="text-2xl font-bold text-white">{logsInsights.errorCount}</div>
+                  </div>
+                  <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
+                    <div className="text-yellow-400 font-medium text-sm">Warnings (24h)</div>
+                    <div className="text-2xl font-bold text-white">{logsInsights.warningCount}</div>
+                  </div>
+                </div>
+
+                {logsInsights.topErrors.length > 0 && (
+                  <div className="bg-white/5 rounded-lg p-4">
+                    <h4 className="text-white font-medium mb-3">🔍 Top Error Patterns</h4>
+                    <div className="space-y-2">
+                      {logsInsights.topErrors.slice(0, 3).map((error, index) => (
+                        <div key={index} className="bg-red-500/5 border border-red-500/10 rounded p-2">
+                          <div className="text-red-300 text-xs font-mono">{error.error}</div>
+                          <div className="flex justify-between text-xs mt-1">
+                            <span className="text-white/60">Count: {error.count}</span>
+                            <span className="text-white/40">First: {new Date(error.firstSeen).toLocaleTimeString()}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* User Activity & Performance */}
+              <div className="space-y-4">
+                <div className="bg-white/5 rounded-lg p-4">
+                  <h4 className="text-white font-medium mb-3">👥 User Activity Insights</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-white/60 text-xs">Active Users</div>
+                      <div className="text-lg font-bold text-blue-400">{logsInsights.userActivity.activeUsers}</div>
+                    </div>
+                    <div>
+                      <div className="text-white/60 text-xs">Peak Hour</div>
+                      <div className="text-lg font-bold text-green-400">{logsInsights.userActivity.peakHour}</div>
+                    </div>
+                    <div>
+                      <div className="text-white/60 text-xs">Messages/Hour</div>
+                      <div className="text-lg font-bold text-purple-400">{logsInsights.userActivity.messagesSentLastHour}</div>
+                    </div>
+                    <div>
+                      <div className="text-white/60 text-xs">New Users</div>
+                      <div className="text-lg font-bold text-emerald-400">{logsInsights.userActivity.newRegistrations}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {logsInsights.performanceInsights.length > 0 && (
+                  <div className="bg-white/5 rounded-lg p-4">
+                    <h4 className="text-white font-medium mb-3">⚡ Performance Insights</h4>
+                    <div className="space-y-2">
+                      {logsInsights.performanceInsights.slice(0, 3).map((insight, index) => (
+                        <div key={index} className={`rounded p-2 border ${
+                          insight.severity === 'high' ? 'bg-red-500/10 border-red-500/20' :
+                          insight.severity === 'medium' ? 'bg-yellow-500/10 border-yellow-500/20' :
+                          'bg-blue-500/10 border-blue-500/20'
+                        }`}>
+                          <div className="text-white/90 text-sm">{insight.insight}</div>
+                          <div className="text-white/60 text-xs mt-1">💡 {insight.recommendation}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <p className="text-white/40 text-xs text-center">&nbsp;</p>
       </div>
     </div>
   );

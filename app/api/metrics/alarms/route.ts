@@ -7,19 +7,19 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5001';
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('[System Metrics API] Fetching system metrics, backend URL:', BACKEND_URL);
+    console.log('[Alarms API] Fetching CloudWatch alarms, backend URL:', BACKEND_URL);
 
     // Get current session to verify authentication (NextAuth v5 API route style)
     const session = await auth(request as any, {} as any);
 
-    console.log('[System Metrics API] Session check:', {
+    console.log('[Alarms API] Session check:', {
       hasSession: !!session,
       hasUser: !!session?.user,
       userId: session?.user ? (session.user as any).id : null
     });
 
     if (!session?.user) {
-      console.error('[System Metrics API] No authenticated session');
+      console.error('[Alarms API] No authenticated session');
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
@@ -34,37 +34,41 @@ export async function GET(request: NextRequest) {
       'X-User-Role': (session.user as any).role || 'user'
     };
 
-    const response = await fetch(`${BACKEND_URL}/api/metrics/system`, {
+    const response = await fetch(`${BACKEND_URL}/api/metrics/alarms`, {
       headers,
     });
 
     if (!response.ok) {
-      console.error('[System Metrics API] Fetch failed:', response.status);
-      // Return fallback metrics on error
-      return NextResponse.json({
-        activeConnections: 3,
-        totalMessages: 1000,
-        averageLatency: 50.0,
-        errorRate: 0.5,
-        cpuUsage: 30.0,
-        memoryUsage: 50.0
-      }, { status: 200 });
+      console.error('[Alarms API] Fetch failed:', response.status);
+      // Return fallback alarms on error
+      return NextResponse.json([
+        {
+          name: 'System-HighCPU',
+          state: 'OK',
+          reason: 'Demo mode - threshold not exceeded',
+          timestamp: new Date().toISOString(),
+          threshold: 80.0,
+          metric: 'CPUUtilization'
+        }
+      ], { status: 200 });
     }
 
     const data = await response.json();
-    console.log('[System Metrics API] Successfully fetched system metrics');
+    console.log('[Alarms API] Successfully fetched alarms');
     return NextResponse.json(data);
   } catch (error) {
-    console.error('[System Metrics API] Error fetching system metrics:', error);
+    console.error('[Alarms API] Error fetching alarms:', error);
 
-    // Return fallback metrics on error
-    return NextResponse.json({
-      activeConnections: 3,
-      totalMessages: 1000,
-      averageLatency: 50.0,
-      errorRate: 0.5,
-      cpuUsage: 30.0,
-      memoryUsage: 50.0
-    }, { status: 200 });
+    // Return fallback alarms on error
+    return NextResponse.json([
+      {
+        name: 'System-HighCPU',
+        state: 'OK',
+        reason: 'Demo mode - threshold not exceeded',
+        timestamp: new Date().toISOString(),
+        threshold: 80.0,
+        metric: 'CPUUtilization'
+      }
+    ], { status: 200 });
   }
 }

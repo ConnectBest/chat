@@ -54,7 +54,8 @@
       "Bash(npx cdk:*)",
       "Bash(npm config list:*)",
       "Bash(npm cache clean:*)",
-      "Bash(python -m py_compile:*)"
+      "Bash(python -m py_compile:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server';
+import { auth } from '@/lib/auth';
+import type { NextRequest } from 'next/server';
 
 // Use internal backend URL for server-side API route communication
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5001';
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ metricType: string }> }
 ) {
   const { metricType } = await params;
-  const authHeader = request.headers.get('authorization');
   const { searchParams } = new URL(request.url);
 
   // Extract query parameters
@@ -18,9 +19,34 @@ export async function GET(
   try {
     console.log(`[Timeseries API] Fetching ${metricType} timeseries, backend URL:`, BACKEND_URL);
 
+    // Get current session to verify authentication (NextAuth v5 API route style)
+    const session = await auth(request as any, {} as any);
+
+    console.log('[Timeseries API] Session check:', {
+      hasSession: !!session,
+      hasUser: !!session?.user,
+      userId: session?.user ? (session.user as any).id : null
+    });
+
+    if (!session?.user) {
+      console.error('[Timeseries API] No authenticated session');
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    // Create headers with user info for Flask backend
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-User-ID': (session.user as any).id,
+      'X-User-Email': session.user.email || '',
+      'X-User-Role': (session.user as any).role || 'user'
+    };
+
     const queryString = `period=${period}&points=${points}`;
     const response = await fetch(`${BACKEND_URL}/api/metrics/timeseries/${metricType}?${queryString}`, {
-      headers: authHeader ? { 'Authorization': authHeader } : {},
+      headers,
     });
 
     if (!response.ok) {
