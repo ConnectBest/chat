@@ -2,14 +2,13 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { api } from '@/lib/api';
-import { getApiUrl } from '@/lib/apiConfig';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { UserDirectory } from '@/components/chat/UserDirectory';
 import { Avatar } from '@/components/ui/Avatar';
 import { UserProfilePopover } from '@/components/ui/UserProfilePopover';
+import { useAuth } from '@/lib/useAuth';
 
 interface Channel { id: string; name: string; createdAt: string; }
 interface DirectMessage {
@@ -23,6 +22,7 @@ interface DirectMessage {
 }
 
 export function ChannelSidebar() {
+  const { isAuthenticated } = useAuth(true);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [directMessages, setDirectMessages] = useState<DirectMessage[]>([]);
   const [open, setOpen] = useState(false);
@@ -36,6 +36,8 @@ export function ChannelSidebar() {
   const pathname = usePathname();
 
   useEffect(() => {
+    if (!isAuthenticated) return;
+
     // Initialize DMs from localStorage on mount
     const storedDMs = JSON.parse(localStorage.getItem('activeDMs') || '[]');
     if (storedDMs.length > 0) {
@@ -44,16 +46,8 @@ export function ChannelSidebar() {
 
     const fetchChannels = async () => {
       try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          console.log('No token found for channels');
-          return;
-        }
-
-        console.log('Fetching channels with token:', token.substring(0, 20) + '...');
-        const response = await fetch(getApiUrl('chat/channels'), {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        console.log('Fetching channels via Next.js API route');
+        const response = await fetch('/api/chat/channels');
 
         console.log('Channels response status:', response.status);
         if (response.ok) {
@@ -73,14 +67,14 @@ export function ChannelSidebar() {
 
     const fetchDMConversations = async () => {
       try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          console.log('No token found for DM conversations');
-          return;
+        console.log('Fetching DM conversations via Next.js API route');
+        const response = await fetch('/api/dm/conversations');
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
         }
-
-        console.log('Fetching DM conversations with token:', token.substring(0, 20) + '...');
-        const data = await api.listDMConversations(token);
+        
+        const data = await response.json();
         console.log('DM conversations response:', data);
         const apiConversations = data.conversations || [];
 
@@ -138,23 +132,18 @@ export function ChannelSidebar() {
 
     // Note: Removed event listener that was causing excessive API calls
     // Unread counts will be updated on next natural refresh
-  }, []);
+  }, [isAuthenticated]);
 
   // Function to manually refresh counts (called by ChannelView after marking as read)
   useEffect(() => {
+    if (!isAuthenticated) return;
+
     const handleRefreshSidebar = () => {
       const refreshCounts = async () => {
         try {
-          const token = localStorage.getItem('token');
-          if (!token) return;
-
           const [channelsRes, conversationsRes] = await Promise.all([
-            fetch(getApiUrl('chat/channels'), {
-              headers: { 'Authorization': `Bearer ${token}` }
-            }),
-            fetch(getApiUrl('dm/conversations'), {
-              headers: { 'Authorization': `Bearer ${token}` }
-            })
+            fetch('/api/chat/channels'),
+            fetch('/api/dm/conversations')
           ]);
 
           if (channelsRes.ok) {
@@ -187,7 +176,7 @@ export function ChannelSidebar() {
 
     window.addEventListener('refreshSidebar', handleRefreshSidebar);
     return () => window.removeEventListener('refreshSidebar', handleRefreshSidebar);
-  }, []);
+  }, [isAuthenticated]);
 
   async function createChannel() {
     if (!newName.trim()) return;
@@ -200,11 +189,10 @@ export function ChannelSidebar() {
       }
 
       console.log('Creating channel with name:', newName.trim());
-      const response = await fetch(getApiUrl('chat/channels'), {
+      const response = await fetch('/api/chat/channels', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ name: newName.trim() })
       });
@@ -221,8 +209,6 @@ export function ChannelSidebar() {
         router.push(`/chat/${channel.id}`);
         setMobileMenuOpen(false);
       } else if (response.status === 401) {
-        localStorage.removeItem('token');
-        document.cookie = 'auth-token=; path=/; max-age=0';
         router.push('/login');
       } else {
         console.error('Channel creation failed:', data);
