@@ -4,7 +4,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
-import { getApiUrl } from '@/lib/apiConfig';
+import { useAuth } from '@/lib/useAuth';
 
 interface User {
   id: string;
@@ -22,38 +22,32 @@ interface UserDirectoryProps {
 }
 
 export function UserDirectory({ open, onClose, onSelectUser, currentUserId }: UserDirectoryProps) {
+  const { isAuthenticated } = useAuth(true);
   const [users, setUsers] = useState<User[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadUsers();
-  }, []);
+    if (isAuthenticated) {
+      loadUsers();
+    }
+  }, [isAuthenticated]);
 
   async function loadUsers() {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setUsers([]);
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch(getApiUrl('users'), {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        // Filter out current user if needed
-        const allUsers = data.users || [];
-        setUsers(allUsers.filter((u: User) => u.id !== currentUserId));
-      } else {
-        setUsers([]);
-      }
+      // TODO: Create API route for fetching users
+      // const response = await fetch('/api/users');
+      // if (response.ok) {
+      //   const data = await response.json();
+      //   // Filter out current user if needed
+      //   const allUsers = data.users || [];
+      //   setUsers(allUsers.filter((u: User) => u.id !== currentUserId));
+      // } else {
+      //   setUsers([]);
+      // }
+      console.warn('Users API route not yet implemented');
+      setUsers([]);
     } catch (error) {
       console.error('Failed to load users:', error);
       setUsers([]);

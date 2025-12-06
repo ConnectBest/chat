@@ -1,6 +1,5 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
-import { useSession } from 'next-auth/react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -8,8 +7,7 @@ import { CallControls } from './CallControls';
 import { NotificationSettings } from './NotificationSettings';
 import { HuddlePanel } from './HuddlePanel';
 import { CanvasEditor } from './CanvasEditor';
-import { api } from '@/lib/api';
-import { getApiUrl } from '@/lib/apiConfig';
+import { useAuth } from '@/lib/useAuth';
 
 interface User {
   id: string;
@@ -28,7 +26,7 @@ interface ChannelHeaderProps {
 }
 
 export function ChannelHeader({ channelId, channelName, memberCount, onUpdateChannel }: ChannelHeaderProps) {
-  const { data: session } = useSession();
+  const { isAuthenticated } = useAuth(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showAddMembers, setShowAddMembers] = useState(false);
   const [showRenameChannel, setShowRenameChannel] = useState(false);
@@ -43,13 +41,6 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
   const [showCanvas, setShowCanvas] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Helper function to get token from either localStorage or NextAuth session
-  const getToken = () => {
-    const localToken = localStorage.getItem('token');
-    const sessionToken = (session?.user as any)?.accessToken;
-    return localToken || sessionToken;
-  };
-
   // Close menu when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -63,35 +54,37 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
 
   // Load users and channel members
   useEffect(() => {
+    if (!isAuthenticated) return;
+
     async function loadData() {
-      const token = getToken();
-      if (!token) return;
-
       try {
+        // TODO: Create API route for fetching users
+        // For now, users endpoint is not migrated yet
         // Load all users
-        const usersResponse = await fetch(getApiUrl('users'), {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (usersResponse.ok) {
-          const usersData = await usersResponse.json();
-          setAllUsers(usersData.users || []);
-        }
+        // const usersResponse = await fetch('/api/users');
+        // if (usersResponse.ok) {
+        //   const usersData = await usersResponse.json();
+        //   setAllUsers(usersData.users || []);
+        // }
 
+        // TODO: Create API route for channel details
         // Load channel details with members
-        const channelData = await api.getChannelDetails(channelId, token);
-        if (channelData.channel && channelData.channel.members) {
-          const members = channelData.channel.members.map((m: any) => ({
-            id: m.user_id,
-            name: m.name || 'Unknown',
-            email: m.email || '',
-            avatar: m.avatar_url || m.avatar,
-            status: m.status || 'offline' as const
-          }));
-          setChannelMembers(members);
-        }
+        // const channelResponse = await fetch(`/api/chat/channels/${channelId}`);
+        // if (channelResponse.ok) {
+        //   const channelData = await channelResponse.json();
+        //   if (channelData.channel && channelData.channel.members) {
+        //     const members = channelData.channel.members.map((m: any) => ({
+        //       id: m.user_id,
+        //       name: m.name || 'Unknown',
+        //       email: m.email || '',
+        //       avatar: m.avatar_url || m.avatar,
+        //       status: m.status || 'offline' as const
+        //     }));
+        //     setChannelMembers(members);
+        //   }
+        // }
       } catch (error: any) {
         console.error('Failed to load data:', error);
-        console.error('Error details:', error.response?.data || error.message);
         // Set empty arrays on error to prevent UI breaking
         setAllUsers([]);
         setChannelMembers([]);
@@ -99,7 +92,7 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
     }
 
     loadData();
-  }, [channelId, session]); // Add session to dependencies
+  }, [channelId, isAuthenticated]);
 
   // Search users by name, email, or phone
   useEffect(() => {
@@ -123,45 +116,56 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
     setSearchResults(results);
   }, [searchQuery, allUsers, channelMembers]);
 
-  function handleAddMember(user: User) {
-    const token = getToken();
-    if (!token) {
-      console.error('No authentication token available');
+  async function handleAddMember(user: User) {
+    if (!isAuthenticated) {
+      console.error('No authentication');
       alert('Authentication error. Please try logging in again.');
       return;
     }
 
     console.log('Adding member:', user.id, 'to channel:', channelId);
 
-    // Add to backend
-    api.addChannelMember(channelId, user.id, token)
-      .then(() => {
-        setChannelMembers(prev => [...prev, user]);
-        setSearchQuery('');
-        setSearchResults([]);
-        console.log('✅ Added member successfully:', user);
-      })
-      .catch(error => {
-        console.error('❌ Failed to add member:', error);
-        console.error('Error details:', error.response?.data || error.message);
-        alert(`Failed to add member: ${error.response?.data?.error || error.message}`);
-      });
+    try {
+      // TODO: Create API route for adding channel members
+      // const response = await fetch(`/api/chat/channels/${channelId}/members`, {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({ user_id: user.id })
+      // });
+      // if (response.ok) {
+      //   setChannelMembers(prev => [...prev, user]);
+      //   setSearchQuery('');
+      //   setSearchResults([]);
+      //   console.log('✅ Added member successfully:', user);
+      // } else {
+      //   throw new Error('Failed to add member');
+      // }
+      console.warn('Add member API route not yet implemented');
+    } catch (error: any) {
+      console.error('❌ Failed to add member:', error);
+      alert(`Failed to add member: ${error.message}`);
+    }
   }
 
-  function handleRemoveMember(userId: string) {
-    const token = getToken();
-    if (!token) return;
+  async function handleRemoveMember(userId: string) {
+    if (!isAuthenticated) return;
 
-    // Remove from backend
-    api.removeChannelMember(channelId, userId, token)
-      .then(() => {
-        setChannelMembers(prev => prev.filter(m => m.id !== userId));
-        console.log('Removed member:', userId);
-      })
-      .catch(error => {
-        console.error('Failed to remove member:', error);
-        alert('Failed to remove member from channel');
-      });
+    try {
+      // TODO: Create API route for removing channel members
+      // const response = await fetch(`/api/chat/channels/${channelId}/members/${userId}`, {
+      //   method: 'DELETE'
+      // });
+      // if (response.ok) {
+      //   setChannelMembers(prev => prev.filter(m => m.id !== userId));
+      //   console.log('Removed member:', userId);
+      // } else {
+      //   throw new Error('Failed to remove member');
+      // }
+      console.warn('Remove member API route not yet implemented');
+    } catch (error: any) {
+      console.error('Failed to remove member:', error);
+      alert('Failed to remove member from channel');
+    }
   }
 
   function handleRenameChannel() {
