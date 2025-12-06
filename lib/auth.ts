@@ -20,6 +20,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   debug: process.env.NODE_ENV === 'development' || process.env.NEXTAUTH_DEBUG === 'true',
   trustHost: true, // Required for deployment behind proxies/load balancers
   useSecureCookies: process.env.NODE_ENV === 'production',
+  url: process.env.NEXTAUTH_URL || "https://chat.connect-best.com",
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
