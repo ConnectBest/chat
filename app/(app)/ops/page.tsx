@@ -1,5 +1,7 @@
 "use client";
 import React, { useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface HealthStatus {
@@ -19,6 +21,8 @@ interface Metrics {
 }
 
 export default function OpsPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [latencyData, setLatencyData] = useState<any[]>([]);
@@ -26,21 +30,33 @@ export default function OpsPage() {
   const [errorData, setErrorData] = useState<any[]>([]);
   const [autoRefresh, setAutoRefresh] = useState(true);
 
+  // Check admin access
   useEffect(() => {
-    fetchData();
-    
-    const interval = autoRefresh ? setInterval(fetchData, 5000) : null;
-    return () => { if (interval) clearInterval(interval); };
-  }, [autoRefresh]);
+    if (status === 'loading') return; // Wait for session to load
+
+    if (status === 'unauthenticated') {
+      router.push('/login');
+      return;
+    }
+
+    if (session?.user && (session.user as any).role !== 'admin') {
+      router.push('/chat'); // Redirect non-admin users
+      return;
+    }
+  }, [session, status, router]);
+
+  useEffect(() => {
+    // Only fetch data if user is authenticated and is admin
+    if (session?.user && (session.user as any).role === 'admin') {
+      fetchData();
+
+      const interval = autoRefresh ? setInterval(fetchData, 5000) : null;
+      return () => { if (interval) clearInterval(interval); };
+    }
+  }, [session, autoRefresh]);
 
   async function fetchData() {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        console.warn('No auth token found, cannot fetch metrics');
-        return;
-      }
-
       // Fetch real health status
       try {
         const healthResponse = await fetch('/api/metrics/health');
@@ -57,11 +73,9 @@ export default function OpsPage() {
         console.error('Failed to fetch health status:', error);
       }
 
-      // Fetch real system metrics
+      // Fetch real system metrics (using NextAuth session automatically)
       try {
-        const metricsResponse = await fetch('/api/metrics/system', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const metricsResponse = await fetch('/api/metrics/system');
         if (metricsResponse.ok) {
           const metricsData = await metricsResponse.json();
           setMetrics({
@@ -83,9 +97,7 @@ export default function OpsPage() {
 
       // Fetch latency time series
       try {
-        const latencyResponse = await fetch('/api/metrics/timeseries/latency?period=30&points=1', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const latencyResponse = await fetch('/api/metrics/timeseries/latency?period=30&points=1');
         if (latencyResponse.ok) {
           const latencyData = await latencyResponse.json();
           const latencyValue = latencyData.length > 0 ? latencyData[0].value : 0;
@@ -103,9 +115,7 @@ export default function OpsPage() {
 
       // Fetch connections time series
       try {
-        const connectionsResponse = await fetch('/api/metrics/timeseries/connections?period=30&points=1', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const connectionsResponse = await fetch('/api/metrics/timeseries/connections?period=30&points=1');
         if (connectionsResponse.ok) {
           const connectionsData = await connectionsResponse.json();
           const connectionsValue = connectionsData.length > 0 ? connectionsData[0].value : 0;
@@ -123,9 +133,7 @@ export default function OpsPage() {
 
       // Fetch errors time series
       try {
-        const errorsResponse = await fetch('/api/metrics/timeseries/errors?period=30&points=1', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const errorsResponse = await fetch('/api/metrics/timeseries/errors?period=30&points=1');
         if (errorsResponse.ok) {
           const errorsData = await errorsResponse.json();
           const errorsValue = errorsData.length > 0 ? errorsData[0].value : 0;
@@ -163,10 +171,37 @@ export default function OpsPage() {
     }
   }
 
-  const statusColor = health?.status === 'healthy' ? 'bg-green-500' : 
+  // Show loading while checking authentication
+  if (status === 'loading') {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-400"></div>
+          <p className="mt-4 text-gray-400">Loading session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error for non-admin users (shouldn't reach here due to redirect, but safety check)
+  if (session?.user && (session.user as any).role !== 'admin') {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center max-w-md p-8">
+          <div className="text-6xl mb-4">🚫</div>
+          <h2 className="text-2xl font-bold mb-2">Access Denied</h2>
+          <p className="text-gray-400 mb-6">
+            You don't have permission to access the Ops Dashboard.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const statusColor = health?.status === 'healthy' ? 'bg-green-500' :
                       health?.status === 'degraded' ? 'bg-yellow-500' : 'bg-red-500';
 
-  const statusTextColor = health?.status === 'healthy' ? 'text-green-400' : 
+  const statusTextColor = health?.status === 'healthy' ? 'text-green-400' :
                           health?.status === 'degraded' ? 'text-yellow-400' : 'text-red-400';
 
   return (

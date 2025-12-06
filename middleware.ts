@@ -1,34 +1,34 @@
-import { auth } from './lib/auth';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Use NextAuth v5's auth function for middleware
-export default auth((req) => {
+export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const session = req.auth;
 
   // Protected routes that require authentication
   const protectedRoutes = ['/chat', '/profile', '/admin', '/ops'];
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
 
-  // Redirect to login if accessing protected route without session
-  if (isProtectedRoute && !session) {
-    const loginUrl = new URL('/login', req.url);
-    loginUrl.searchParams.set('callbackUrl', pathname);
-    return NextResponse.redirect(loginUrl);
+  // Skip middleware for API routes and static files
+  if (pathname.startsWith('/api') || pathname.startsWith('/_next') || pathname.startsWith('/favicon')) {
+    return NextResponse.next();
   }
 
-  // Admin-only routes
-  const adminRoutes = ['/admin', '/ops'];
-  const isAdminRoute = adminRoutes.some(route => pathname.startsWith(route));
+  if (isProtectedRoute) {
+    // Check for NextAuth session token (simple existence check)
+    const sessionToken = req.cookies.get('next-auth.session-token') || req.cookies.get('__Secure-next-auth.session-token');
 
-  if (isAdminRoute && session?.user && (session.user as any).role !== 'admin') {
-    // Redirect non-admin users away from admin routes
-    return NextResponse.redirect(new URL('/chat', req.url));
+    if (!sessionToken) {
+      // No session token found, redirect to login
+      const loginUrl = new URL('/login', req.url);
+      loginUrl.searchParams.set('callbackUrl', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
   }
 
+  // Let the actual pages handle detailed authentication and role checks
+  // This middleware only does basic token presence validation
   return NextResponse.next();
-});
+}
 
 export const config = {
   matcher: [

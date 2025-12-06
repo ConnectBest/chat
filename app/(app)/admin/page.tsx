@@ -1,9 +1,10 @@
 "use client";
 import React, { useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Avatar } from '@/components/ui/Avatar';
-import { useRouter } from 'next/navigation';
 import { getApiUrl } from '@/lib/apiConfig';
 
 interface User {
@@ -30,6 +31,8 @@ interface Statistics {
 }
 
 export default function AdminPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [statistics, setStatistics] = useState<Statistics>({ totalUsers: 0, activeUsers: 0, totalChannels: 0, totalMessages: 0 });
@@ -38,26 +41,35 @@ export default function AdminPage() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [actionType, setActionType] = useState<'suspend' | 'activate' | 'delete' | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
+
+  // Check admin access
+  useEffect(() => {
+    if (status === 'loading') return; // Wait for session to load
+
+    if (status === 'unauthenticated') {
+      router.push('/login');
+      return;
+    }
+
+    if (session?.user && (session.user as any).role !== 'admin') {
+      router.push('/chat'); // Redirect non-admin users
+      return;
+    }
+  }, [session, status, router]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    // Only fetch data if user is authenticated and is admin
+    if (session?.user && (session.user as any).role === 'admin') {
+      fetchData();
+    }
+  }, [session]);
 
   async function fetchData() {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        router.push('/login');
-        return;
-      }
-
-      // Fetch statistics from backend
+      // Fetch statistics from backend (using NextAuth session automatically)
       try {
-        const statsRes = await fetch(getApiUrl('users/statistics'), {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
+        const statsRes = await fetch('/api/users/statistics');
+
         if (statsRes.ok) {
           const statsData = await statsRes.json();
           setStatistics(statsData.statistics);
@@ -70,10 +82,8 @@ export default function AdminPage() {
 
       // Fetch users
       try {
-        const usersRes = await fetch(getApiUrl('users'), {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
+        const usersRes = await fetch('/api/users');
+
         if (usersRes.ok) {
           const usersData = await usersRes.json();
           setUsers(usersData.users || []);
@@ -86,10 +96,8 @@ export default function AdminPage() {
 
       // Fetch channels
       try {
-        const channelsRes = await fetch(getApiUrl('chat/channels/all'), {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
+        const channelsRes = await fetch('/api/chat/channels/all');
+
         if (channelsRes.ok) {
           const channelsData = await channelsRes.json();
           setChannels(channelsData.channels || []);
@@ -130,6 +138,35 @@ export default function AdminPage() {
     setShowConfirmModal(false);
     setSelectedUser(null);
     setActionType(null);
+  }
+
+  // Show loading while checking authentication
+  if (status === 'loading' || loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-400"></div>
+          <p className="mt-4 text-gray-400">
+            {status === 'loading' ? 'Loading session...' : 'Loading admin data...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error for non-admin users (shouldn't reach here due to redirect, but safety check)
+  if (session?.user && (session.user as any).role !== 'admin') {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center max-w-md p-8">
+          <div className="text-6xl mb-4">🚫</div>
+          <h2 className="text-2xl font-bold mb-2">Access Denied</h2>
+          <p className="text-gray-400 mb-6">
+            You don't have permission to access the Admin Dashboard.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
