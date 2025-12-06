@@ -4,12 +4,20 @@ import { auth } from '@/lib/auth';
 // Use internal backend URL for server-side API route communication
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5001';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     console.log('[DM Conversations API] Fetching conversations, backend URL:', BACKEND_URL);
 
-    // Get current session to verify authentication
-    const session = await auth();
+    // Get current session to verify authentication (NextAuth v5 API route style)
+    // In NextAuth v5 API routes, we need to create a proper auth context
+    const session = await auth(request as any, {} as any);
+
+    console.log('[DM Conversations API] Session check:', {
+      hasSession: !!session,
+      hasUser: !!session?.user,
+      userId: session?.user ? (session.user as any).id : null,
+      requestHeaders: Object.fromEntries(new Headers(request.headers).entries())
+    });
 
     if (!session?.user) {
       console.error('[DM Conversations API] No authenticated session');

@@ -1,15 +1,24 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import type { NextRequest } from 'next/server';
 
 // Use internal backend URL for server-side API route communication
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5001';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     console.log('[Channels API] Fetching channels, backend URL:', BACKEND_URL);
 
-    // Get current session to verify authentication
-    const session = await auth();
+    // Get current session to verify authentication (NextAuth v5 API route style)
+    // In NextAuth v5 API routes, we need to create a proper auth context
+    const session = await auth(request as any, {} as any);
+
+    console.log('[Channels API] Session check:', {
+      hasSession: !!session,
+      hasUser: !!session?.user,
+      userId: session?.user ? (session.user as any).id : null,
+      cookies: request.cookies.getAll().map(c => ({ name: c.name, hasValue: !!c.value }))
+    });
 
     if (!session?.user) {
       console.error('[Channels API] No authenticated session');
@@ -26,6 +35,12 @@ export async function GET() {
       'X-User-Email': session.user.email || '',
       'X-User-Role': (session.user as any).role || 'user'
     };
+
+    console.log('[Channels API] Sending headers to backend:', {
+      userId: headers['X-User-ID'],
+      email: headers['X-User-Email'],
+      role: headers['X-User-Role']
+    });
 
     const response = await fetch(`${BACKEND_URL}/api/chat/channels`, {
       headers
@@ -57,8 +72,8 @@ export async function POST(request: Request) {
 
     console.log('[Channels API] Creating channel, backend URL:', BACKEND_URL);
 
-    // Get current session to verify authentication
-    const session = await auth();
+    // Get current session to verify authentication (NextAuth v5 API route style)
+    const session = await auth(request as any, {} as any);
 
     if (!session?.user) {
       console.error('[Channels API] No authenticated session');
