@@ -69,8 +69,19 @@ function LoginForm() {
 
         console.log('🚀 Redirecting to:', callbackUrl);
 
-        // Use router.push for client-side navigation
+        // Try Next.js router first
         router.push(callbackUrl);
+
+        // Fallback: Force redirect if router.push doesn't work within 2 seconds
+        setTimeout(() => {
+          console.log('⚠️ Router redirect timeout, forcing window redirect');
+          window.location.href = callbackUrl;
+        }, 2000);
+
+        // Reset loading state after a brief delay to show redirect is happening
+        setTimeout(() => {
+          setLoading(false);
+        }, 1000);
       }
     } catch (err) {
       console.error('💥 Login exception:', err);
