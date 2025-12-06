@@ -55,7 +55,8 @@
       "Bash(npm config list:*)",
       "Bash(npm cache clean:*)",
       "Bash(python -m py_compile:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []
