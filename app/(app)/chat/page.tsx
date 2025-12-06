@@ -24,14 +24,13 @@ export default function ChatPage() {
 
         console.log('✅ [Chat] Session loaded, proceeding with auth check');
 
-        // Check for NextAuth session and token
-        const sessionToken = (session?.user as any)?.accessToken;
-        const hasValidSession = status === 'authenticated' && session?.user && sessionToken;
+        // Check for NextAuth session
+        const hasValidSession = status === 'authenticated' && session?.user;
 
         console.log('🔑 [Chat] Session info:', {
           status,
           hasUser: !!session?.user,
-          hasToken: !!sessionToken,
+          userId: session?.user ? (session.user as any).id : null,
           isValid: hasValidSession
         });
 
@@ -44,14 +43,11 @@ export default function ChatPage() {
 
         console.log('🚀 [Chat] Valid session found, fetching channels and DMs...');
 
-        // Fetch both channels and DM conversations
+        // Fetch both channels and DM conversations using Next.js API routes
+        // These routes handle NextAuth authentication internally
         const [channelsRes, dmsRes] = await Promise.all([
-          fetch(getApiUrl('chat/channels'), {
-            headers: { 'Authorization': `Bearer ${sessionToken}` }
-          }),
-          fetch(getApiUrl('dm/conversations'), {
-            headers: { 'Authorization': `Bearer ${sessionToken}` }
-          })
+          fetch('/api/chat/channels'),
+          fetch('/api/dm/conversations')
         ]);
 
         console.log('📡 [Chat] API responses:', {

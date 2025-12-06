@@ -2,23 +2,8 @@ import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
-
-// Backend API URL - Flask backend
-// In production, we need to call the backend directly (internal ALB routing)
-const BACKEND_API_URL = process.env.NODE_ENV === 'production'
-  ? 'https://chat.connect-best.com/api'
-  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api');
-
-// Helper function to construct absolute URLs for server-side fetch calls
-const getAbsoluteUrl = (path: string): string => {
-  // Get the base URL from NEXTAUTH_URL or construct from environment
-  const baseUrl = process.env.NEXTAUTH_URL ||
-    (process.env.NODE_ENV === 'production'
-      ? 'https://chat.connect-best.com'
-      : 'http://localhost:3000');
-
-  return `${baseUrl}${path}`;
-};
+import bcrypt from "bcryptjs";
+import { getMongoClient } from './mongodb';
 
 // Extended user type with role and phone
 export interface ExtendedUser {
@@ -55,8 +40,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
       async authorize(credentials) {
         const parsedCredentials = z
-          .object({ 
-            email: z.string().email(), 
+          .object({
+            email: z.string().email(),
             password: z.string().min(6)
           })
           .safeParse(credentials);
@@ -66,36 +51,49 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const { email, password } = parsedCredentials.data;
 
         try {
-          // Call our own NextJS API route which proxies to Flask backend
-          // This ensures proper routing through ALB and avoids conflicts
-          // Use absolute URL for server-side fetch
-          const response = await fetch(getAbsoluteUrl('/api/auth/login'), {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ email, password }),
+          console.log('🔍 [NextAuth] Connecting to MongoDB for user validation...');
+
+          // Connect to MongoDB directly
+          const client = await getMongoClient();
+          const db = client.db(process.env.MONGODB_DB_NAME || 'chatapp');
+          const usersCollection = db.collection('users');
+
+          // Find user by email
+          const user = await usersCollection.findOne({
+            email: email.toLowerCase().trim()
           });
 
-          const data = await response.json();
-
-          if (!response.ok) {
-            console.error('Login failed:', data);
+          if (!user) {
+            console.log('❌ [NextAuth] User not found:', email);
             return null;
           }
-          
-          // Return user data from Flask backend
+
+          // Verify password using bcrypt (matching Flask's implementation)
+          if (!user.password_hash || !bcrypt.compareSync(password, user.password_hash)) {
+            console.log('❌ [NextAuth] Invalid password for user:', email);
+            return null;
+          }
+
+          console.log('✅ [NextAuth] User authenticated successfully:', email);
+
+          // Update last login timestamp
+          await usersCollection.updateOne(
+            { _id: user._id },
+            { $set: { last_login: new Date() } }
+          );
+
+          // Return user data for NextAuth session
           return {
-            id: data.user.id,
-            email: data.user.email,
-            name: data.user.full_name || data.user.username || data.user.email,
-            role: data.user.role,
-            phone: data.user.phone,
-            image: data.user.avatar,
-            accessToken: data.token // Store JWT token
+            id: user._id.toString(),
+            email: user.email,
+            name: user.full_name || user.username || user.email,
+            role: user.role || 'user',
+            phone: user.phone,
+            image: user.avatar,
+            emailVerified: user.email_verified ? new Date() : null
           } as any;
         } catch (error) {
-          console.error('Login error:', error);
+          console.error('❌ [NextAuth] Database authentication error:', error);
           return null;
         }
       },
@@ -103,52 +101,74 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
   callbacks: {
     async signIn({ user, account, profile }) {
-      // For Google OAuth, ensure user has accessToken
+      // For Google OAuth, ensure user exists in our database
       if (account?.provider === "google" && user.email) {
         try {
-          // First, try to register user through proper API route (might already exist, that's ok)
-          // Use absolute URL for server-side fetch
-          await fetch(getAbsoluteUrl('/api/auth/register'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: user.email,
-              name: user.name,
-              password: Math.random().toString(36), // Random password for OAuth users
-              role: 'user'
-            }),
-          }).catch(() => {}); // Ignore errors - user might already exist
+          console.log('🔍 [NextAuth] Processing Google OAuth sign in for:', user.email);
 
-          // Get a proper Flask JWT token for Google OAuth users
-          // Use absolute URL for server-side fetch
-          const loginResponse = await fetch(getAbsoluteUrl('/api/auth/login'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: user.email,
-              password: Math.random().toString(36), // This will fail, but we'll handle it
-              google_oauth: true // Flag to indicate this is Google OAuth
-            }),
+          const client = await getMongoClient();
+          const db = client.db(process.env.MONGODB_DB_NAME || 'chatapp');
+          const usersCollection = db.collection('users');
+
+          // Check if user already exists
+          let existingUser = await usersCollection.findOne({
+            email: user.email.toLowerCase().trim()
           });
 
-          if (loginResponse.ok) {
-            const loginData = await loginResponse.json();
-            (user as any).accessToken = loginData.token;
-            (user as any).role = loginData.user?.role || 'user';
-            (user as any).id = loginData.user?.id || user.email;
+          if (!existingUser) {
+            console.log('🆕 [NextAuth] Creating new Google OAuth user:', user.email);
+
+            // Create new user for Google OAuth
+            const newUserDoc = {
+              email: user.email.toLowerCase().trim(),
+              username: user.email.split('@')[0].toLowerCase().trim(),
+              password_hash: null, // OAuth users don't have passwords
+              full_name: user.name || '',
+              avatar: user.image,
+              role: 'user',
+              status: 'online',
+              email_verified: true, // Google OAuth users are pre-verified
+              verification_token: null,
+              verification_expires: null,
+              two_factor_enabled: false,
+              two_factor_secret: null,
+              backup_codes: [],
+              google_id: profile?.sub,
+              oauth_provider: 'google',
+              created_at: new Date(),
+              updated_at: new Date(),
+              last_login: new Date(),
+            };
+
+            const result = await usersCollection.insertOne(newUserDoc);
+            existingUser = { ...newUserDoc, _id: result.insertedId };
+
+            console.log('✅ [NextAuth] Created Google OAuth user with ID:', result.insertedId);
           } else {
-            // Fallback: create a temporary token that can be validated later
-            (user as any).accessToken = `google_oauth_${Date.now()}_${btoa(user.email || '')}`;
-            (user as any).role = 'user';
-            (user as any).id = user.email;
+            console.log('✅ [NextAuth] Existing Google OAuth user found:', user.email);
+
+            // Update last login and Google profile info
+            await usersCollection.updateOne(
+              { _id: existingUser._id },
+              {
+                $set: {
+                  last_login: new Date(),
+                  avatar: user.image, // Update avatar from Google
+                  google_id: profile?.sub,
+                  oauth_provider: 'google'
+                }
+              }
+            );
           }
 
+          // Store user info for session
+          (user as any).id = existingUser._id.toString();
+          (user as any).role = existingUser.role || 'user';
+          (user as any).phone = existingUser.phone;
+
         } catch (error) {
-          console.error('Google OAuth error:', error);
-          // Still provide fallback token
-          (user as any).accessToken = `google_oauth_${Date.now()}_${btoa(user.email || '')}`;
-          (user as any).role = 'user';
-          (user as any).id = user.email;
+          console.error('❌ [NextAuth] Google OAuth error:', error);
+          return false; // Prevent sign in on error
         }
       }
       return true;
@@ -158,7 +178,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.id = user.id;
         token.role = (user as any).role || 'user';
         token.phone = (user as any).phone;
-        token.accessToken = (user as any).accessToken; // Store Flask JWT token
+        token.emailVerified = (user as any).emailVerified;
       }
       return token;
     },
@@ -167,7 +187,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         (session.user as any).id = token.id;
         (session.user as any).role = token.role;
         (session.user as any).phone = token.phone;
-        (session.user as any).accessToken = token.accessToken; // Pass JWT to client
+        (session.user as any).emailVerified = token.emailVerified;
+
+        // Include the JWT token in the session for API calls to Flask backend
+        // This is the actual NextAuth JWT token that Flask can validate
+        (session.user as any).accessToken = token;
       }
       return session;
     },

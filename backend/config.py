@@ -38,6 +38,11 @@ class Config:
     JWT_EXPIRATION_HOURS = int(os.getenv('JWT_EXPIRATION_HOURS', 168))  # 7 days
     JWT_EXPIRATION_DELTA = timedelta(hours=JWT_EXPIRATION_HOURS)
 
+    # NextAuth Configuration
+    # NEXTAUTH_SECRET must match the secret used by Next.js frontend
+    NEXTAUTH_SECRET = os.getenv('NEXTAUTH_SECRET', 'development-secret-change-in-production')
+    NEXTAUTH_URL = os.getenv('NEXTAUTH_URL', 'http://localhost:3000')
+
     # CORS (Cross-Origin Resource Sharing) Configuration
     # Allows frontend to make requests from different origin
     # For production, set CORS_ORIGINS to your actual frontend domain(s)

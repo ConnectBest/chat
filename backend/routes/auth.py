@@ -1,21 +1,27 @@
 """
-Authentication Routes - Handles user registration, login, and authentication
+Simplified Authentication Routes - Email verification and user utilities
+
+IMPORTANT: Primary authentication (login/logout/OAuth) is now handled by NextAuth.js
+This module only provides supplementary functionality that NextAuth doesn't handle.
 """
 
 from flask import request, current_app
 from flask_restx import Namespace, Resource, fields
 from models.user import User
-from utils.auth import generate_token
+from utils.auth import token_required, get_current_user
 from utils.validators import validate_email, validate_password, validate_name, validate_phone
 from utils.email_service import send_verification_email, send_welcome_email
 import secrets
 from datetime import datetime, timedelta
 
-auth_ns = Namespace('auth', description='Authentication operations')
+auth_ns = Namespace('auth', description='Authentication utilities (NextAuth integration)')
 
-# Import Google OAuth routes to register them on same namespace
-from routes.google_oauth import register_google_routes
+# Email verification model
+verify_email_model = auth_ns.model('VerifyEmail', {
+    'token': fields.String(required=True, description='Email verification token')
+})
 
+# User registration model (for admin use or special cases)
 register_model = auth_ns.model('Register', {
     'email': fields.String(required=True, description='User email', example='john@example.com'),
     'password': fields.String(required=True, description='Password', example='SecurePass123'),
@@ -24,82 +30,149 @@ register_model = auth_ns.model('Register', {
     'role': fields.String(description='User role', example='user', enum=['admin', 'user'])
 })
 
-login_model = auth_ns.model('Login', {
-    'email': fields.String(required=True, example='john@example.com'),
-    'password': fields.String(required=True, example='SecurePass123'),
-    'two_factor_code': fields.String(description='6-digit 2FA code (if 2FA is enabled)', example='123456')
-})
+
+@auth_ns.route('/me')
+class CurrentUser(Resource):
+    @token_required
+    @auth_ns.doc(security='Bearer')
+    def get(self):
+        """Get current authenticated user information (from NextAuth session)"""
+        try:
+            # Get user info from NextAuth token (validated by @token_required)
+            current_user = get_current_user()
+
+            if not current_user:
+                return {'error': 'User information not found in token'}, 401
+
+            # Optionally fetch fresh user data from database
+            db = current_app.db
+            user_model = User(db)
+            user = user_model.find_by_id(current_user['user_id'])
+
+            if not user:
+                return {'error': 'User not found in database'}, 404
+
+            # Return formatted user data
+            user_data = {
+                'id': user['id'],
+                'email': user.get('email'),
+                'username': user.get('username'),
+                'name': user.get('name') or user.get('full_name') or user.get('username') or user.get('email', '').split('@')[0],
+                'full_name': user.get('full_name'),
+                'role': user.get('role'),
+                'avatar': user.get('avatar'),
+                'picture': user.get('picture'),
+                'phone': user.get('phone'),
+                'status': user.get('status', 'offline'),
+                'status_message': user.get('status_message'),
+                'google_id': user.get('google_id'),
+                'oauth_provider': user.get('oauth_provider'),
+                'email_verified': user.get('email_verified'),
+                'created_at': user.get('created_at')
+            }
+
+            return {'user': user_data}, 200
+        except Exception as e:
+            current_app.logger.error(f"Error getting current user: {str(e)}")
+            return {'error': 'Failed to get user information'}, 500
+
+
+@auth_ns.route('/logout')
+class Logout(Resource):
+    @token_required
+    @auth_ns.doc(security='Bearer')
+    def post(self):
+        """Update user status to offline (NextAuth handles session invalidation)"""
+        try:
+            current_user = get_current_user()
+
+            if not current_user:
+                return {'error': 'User information not found'}, 401
+
+            # Update user status to offline
+            db = current_app.db
+            user_model = User(db)
+            user_model.update_status(current_user['user_id'], 'offline')
+
+            return {'message': 'Status updated to offline. NextAuth handles session logout.'}, 200
+        except Exception as e:
+            current_app.logger.error(f"Logout error: {str(e)}")
+            return {'error': 'Logout status update failed'}, 500
 
 
 @auth_ns.route('/register')
 class Register(Resource):
     @auth_ns.expect(register_model)
     def post(self):
-        """Register a new user"""
+        """
+        Register a new user (for special cases - most registration handled by NextAuth)
+
+        IMPORTANT: This route is primarily for admin use or special registration scenarios.
+        Normal user registration should go through NextAuth with Google OAuth or credentials.
+        """
         data = request.get_json()
         email = data.get('email', '').strip()
         password = data.get('password', '')
         name = data.get('name', '').strip()
         phone = data.get('phone', '').strip() if data.get('phone') else None
         role = data.get('role', 'user')
-        
+
+        # Validate input
         is_valid, error = validate_email(email)
         if not is_valid:
             return {'error': error}, 400
-        
+
         is_valid, error = validate_password(password)
         if not is_valid:
             return {'error': error}, 400
-        
+
         is_valid, error = validate_name(name)
         if not is_valid:
             return {'error': error}, 400
-        
+
         if phone:
             is_valid, error = validate_phone(phone)
             if not is_valid:
                 return {'error': error}, 400
-        
+
         try:
             db = current_app.db
             user_model = User(db)
-            
-            # Generate username from email
+
+            # Generate unique username from email
             username = email.split('@')[0]
             counter = 1
             original_username = username
             while user_model.find_by_username(username):
                 username = f"{original_username}{counter}"
                 counter += 1
-            
-            # Generate verification token (secure random string)
+
+            # Generate verification token
             verification_token = secrets.token_urlsafe(32)
             verification_expires = datetime.utcnow() + timedelta(hours=24)
-            
-            # Create user with verification fields
+
+            # Create user
             user_data = {
                 'email': email,
                 'username': username,
                 'password': password,
                 'full_name': name,
+                'phone': phone,
                 'role': role,
                 'email_verified': False,
                 'verification_token': verification_token,
                 'verification_expires': verification_expires
             }
-            
+
             user_id = user_model.create(user_data)
             user = user_model.find_by_id(user_id)
-            
-            # Send verification email (don't include token in response for security)
+
+            # Send verification email
             email_sent = send_verification_email(email, name, verification_token)
-            
-            if email_sent:
-                message = 'Registration successful! Please check your email to verify your account.'
-            else:
-                message = 'Registration successful! Email verification link will be sent shortly.'
-            
-            # Don't return verification_token or verification_expires to client
+
+            message = ('Registration successful! Please check your email to verify your account. '
+                      'You can then sign in using NextAuth.')
+
             return {
                 'message': message,
                 'user': {
@@ -110,203 +183,18 @@ class Register(Resource):
                     'role': user['role'],
                     'email_verified': user.get('email_verified', False)
                 },
-                'email_sent': email_sent
+                'email_sent': email_sent,
+                'next_step': 'Use NextAuth to sign in after email verification'
             }, 201
         except ValueError as e:
             return {'error': str(e)}, 409
         except Exception as e:
-            import traceback
-            error_details = {
-                'error': str(e),
-                'type': type(e).__name__,
-                'traceback': traceback.format_exc()
-            }
-            current_app.logger.error(f"Registration error for {email}: {error_details}")
+            current_app.logger.error(f"Registration error for {email}: {str(e)}")
 
-            # Provide more specific error messages for common issues
-            if 'pymongo' in str(e).lower() or 'mongo' in str(e).lower():
-                current_app.logger.error(f"Database connection error during registration: {str(e)}")
-                return {'error': 'Database connection failed. Please try again later.'}, 503
-            elif 'duplicate' in str(e).lower() or 'email' in str(e).lower() and 'exists' in str(e).lower():
-                current_app.logger.error(f"User already exists error during registration: {str(e)}")
+            if 'duplicate' in str(e).lower() or 'email' in str(e).lower() and 'exists' in str(e).lower():
                 return {'error': 'User with this email already exists.'}, 409
-            elif 'validation' in str(e).lower():
-                current_app.logger.error(f"Validation error during registration: {str(e)}")
-                return {'error': f'Validation failed: {str(e)}'}, 400
             else:
-                current_app.logger.error(f"Unexpected registration error: {str(e)}")
-                return {'error': 'An unexpected error occurred during registration.'}, 500
-
-
-@auth_ns.route('/login')
-class Login(Resource):
-    @auth_ns.expect(login_model)
-    def post(self):
-        """Login with email, password, and optional 2FA code"""
-        data = request.get_json()
-        email = data.get('email', '').strip()
-        password = data.get('password', '')
-        two_factor_code = data.get('two_factor_code', '').strip()
-        
-        if not email or not password:
-            return {'error': 'Email and password are required'}, 400
-        
-        try:
-            db = current_app.db
-            user_model = User(db)
-            user = user_model.find_by_email(email)
-            
-            if not user or not user_model.verify_password(user, password):
-                return {'error': 'Invalid credentials'}, 401
-            
-            # Check if email is verified (skip for OAuth users)
-            if not user.get('oauth_provider') and not user.get('email_verified'):
-                return {
-                    'error': 'Please verify your email before logging in. Check your inbox for the verification link.',
-                    'email_not_verified': True
-                }, 403
-            
-            # Check if 2FA is enabled
-            if user.get('two_factor_enabled'):
-                if not two_factor_code:
-                    return {
-                        'requires_2fa': True,
-                        'message': 'Please enter your 2FA code'
-                    }, 200
-                
-                # Verify 2FA code
-                from utils.two_factor import verify_totp_code
-                import bcrypt
-                
-                # Try TOTP code first
-                if not verify_totp_code(user['two_factor_secret'], two_factor_code):
-                    # Try backup codes
-                    backup_codes = user.get('backup_codes', [])
-                    backup_code_valid = False
-                    used_code_index = None
-                    
-                    for i, hashed_code in enumerate(backup_codes):
-                        if bcrypt.checkpw(two_factor_code.encode('utf-8'), hashed_code.encode('utf-8')):
-                            backup_code_valid = True
-                            used_code_index = i
-                            break
-                    
-                    if not backup_code_valid:
-                        return {'error': 'Invalid 2FA code'}, 401
-                    
-                    # Remove used backup code
-                    if used_code_index is not None:
-                        backup_codes.pop(used_code_index)
-                        user_model.collection.update_one(
-                            {'_id': user['_id']},
-                            {'$set': {'backup_codes': backup_codes}}
-                        )
-            
-            user_model.update_last_login(str(user['_id']))
-            user_model.update_status(str(user['_id']), 'online')
-            
-            formatted_user = user_model._format_user(user)
-            token = generate_token(user_id=formatted_user['id'], email=formatted_user['email'], role=formatted_user['role'])
-            
-            return {'user': formatted_user, 'token': token}, 200
-        except Exception as e:
-            import traceback
-            error_details = {
-                'error': str(e),
-                'type': type(e).__name__,
-                'traceback': traceback.format_exc()
-            }
-            current_app.logger.error(f"Login error for {email}: {error_details}")
-
-            # Provide more specific error messages for common issues
-            if 'pymongo' in str(e).lower() or 'mongo' in str(e).lower():
-                current_app.logger.error(f"Database connection error during login: {str(e)}")
-                return {'error': 'Database connection failed. Please try again later.'}, 503
-            elif 'jwt' in str(e).lower() or 'token' in str(e).lower():
-                current_app.logger.error(f"Token generation error during login: {str(e)}")
-                return {'error': 'Authentication token generation failed.'}, 500
-            else:
-                current_app.logger.error(f"Unexpected login error: {str(e)}")
-                return {'error': 'An unexpected error occurred during login.'}, 500
-
-
-@auth_ns.route('/me')
-class CurrentUser(Resource):
-    @auth_ns.doc(security='Bearer')
-    def get(self):
-        """Get current authenticated user information"""
-        auth_header = request.headers.get('Authorization')
-        if not auth_header:
-            return {'error': 'Authorization header is missing'}, 401
-        
-        try:
-            token = auth_header.split()[1]
-            from utils.auth import verify_token
-            payload = verify_token(token)
-            
-            if not payload:
-                return {'error': 'Invalid or expired token'}, 401
-            
-            db = current_app.db
-            user_model = User(db)
-            user = user_model.find_by_id(payload['user_id'])
-            
-            if not user:
-                return {'error': 'User not found'}, 404
-            
-            # Format user data with name field - prioritize 'name' field, then fall back to others
-            user_data = {
-                'id': user['id'],
-                'email': user.get('email'),
-                'username': user.get('username'),
-                'name': user.get('name') or user.get('full_name') or user.get('username') or user.get('email', '').split('@')[0],
-                'full_name': user.get('full_name'),
-                'role': user.get('role'),
-                'avatar': user.get('avatar'),
-                'picture': user.get('picture'),  # Include picture field for backward compatibility
-                'phone': user.get('phone'),
-                'status': user.get('status', 'offline'),
-                'status_message': user.get('status_message'),
-                'google_id': user.get('google_id'),
-                'created_at': user.get('created_at')
-            }
-            
-            return {'user': user_data}, 200
-        except Exception as e:
-            current_app.logger.error(f"Error: {str(e)}")
-            return {'error': 'Failed to get user information'}, 500
-
-
-@auth_ns.route('/logout')
-class Logout(Resource):
-    @auth_ns.doc(security='Bearer')
-    def post(self):
-        """Logout current user"""
-        auth_header = request.headers.get('Authorization')
-        if not auth_header:
-            return {'error': 'Authorization header is missing'}, 401
-        
-        try:
-            token = auth_header.split()[1]
-            from utils.auth import verify_token
-            payload = verify_token(token)
-            
-            if not payload:
-                return {'error': 'Invalid or expired token'}, 401
-            
-            db = current_app.db
-            user_model = User(db)
-            user_model.update_status(payload['user_id'], 'offline')
-            
-            return {'message': 'Logged out successfully'}, 200
-        except Exception as e:
-            current_app.logger.error(f"Logout error: {str(e)}")
-            return {'error': 'Logout failed'}, 500
-
-
-verify_email_model = auth_ns.model('VerifyEmail', {
-    'token': fields.String(required=True, description='Email verification token')
-})
+                return {'error': 'Registration failed. Please try again.'}, 500
 
 
 @auth_ns.route('/verify-email')
@@ -316,37 +204,49 @@ class VerifyEmail(Resource):
         """Verify user's email address using verification token"""
         data = request.get_json()
         token = data.get('token', '').strip()
-        
+
         if not token:
             return {'error': 'Verification token is required'}, 400
-        
+
         try:
             db = current_app.db
             user_model = User(db)
-            
+
             # Verify email using token
             user = user_model.verify_email(token)
-            
+
             if not user:
                 return {'error': 'Invalid or expired verification token'}, 400
-            
+
             # Send welcome email
             send_welcome_email(user['email'], user.get('full_name', user['username']))
-            
-            # Generate token for auto-login
-            auth_token = generate_token(user_id=user['id'], email=user['email'], role=user['role'])
-            
+
             return {
-                'message': 'Email verified successfully! You can now login.',
+                'message': 'Email verified successfully! You can now sign in using NextAuth.',
                 'user': user,
-                'token': auth_token
+                'next_step': 'Sign in at /login using your email and password or Google OAuth'
             }, 200
-            
+
         except Exception as e:
             current_app.logger.error(f"Email verification error: {str(e)}")
             return {'error': 'Email verification failed'}, 500
 
 
-# Register Google OAuth routes on the same namespace
-register_google_routes(auth_ns)
+# Health check endpoint to verify NextAuth integration
+@auth_ns.route('/status')
+class AuthStatus(Resource):
+    def get(self):
+        """Get authentication system status"""
+        return {
+            'auth_provider': 'NextAuth.js',
+            'backend_integration': 'Flask + NextAuth JWT validation',
+            'supported_providers': ['credentials', 'google'],
+            'endpoints': {
+                'login': 'Handled by NextAuth at /api/auth/signin',
+                'logout': 'Handled by NextAuth at /api/auth/signout',
+                'session': 'Handled by NextAuth at /api/auth/session',
+                'registration': '/api/auth/register (limited use)',
+                'email_verification': '/api/auth/verify-email'
+            }
+        }, 200
 

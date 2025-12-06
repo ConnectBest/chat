@@ -1,16 +1,18 @@
 import { NextResponse } from 'next/server';
+import { getAuthenticatedHeaders } from '@/lib/jwt-utils';
 
 // Use internal backend URL for server-side API route communication
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5001';
 
-export async function GET(request: Request) {
-  const authHeader = request.headers.get('authorization');
-
+export async function GET() {
   try {
     console.log('[Channels API] Fetching channels, backend URL:', BACKEND_URL);
 
+    // Get authenticated headers using NextAuth session
+    const headers = await getAuthenticatedHeaders();
+
     const response = await fetch(`${BACKEND_URL}/api/chat/channels`, {
-      headers: authHeader ? { 'Authorization': authHeader } : {},
+      headers
     });
 
     if (!response.ok) {
@@ -34,19 +36,17 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const authHeader = request.headers.get('authorization');
-
   try {
     const body = await request.json().catch(() => ({}));
 
     console.log('[Channels API] Creating channel, backend URL:', BACKEND_URL);
 
+    // Get authenticated headers using NextAuth session
+    const headers = await getAuthenticatedHeaders();
+
     const response = await fetch(`${BACKEND_URL}/api/chat/channels`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(authHeader && { 'Authorization': authHeader }),
-      },
+      headers,
       body: JSON.stringify(body),
     });
 
