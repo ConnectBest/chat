@@ -8,7 +8,11 @@ import { SocketProvider } from '@/components/providers/SocketProvider'
 
 function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <SessionProvider>
+    <SessionProvider
+      refetchInterval={5 * 60} // Refetch every 5 minutes instead of 30 seconds
+      refetchOnWindowFocus={false} // Don't refetch on window focus
+      refetchWhenOffline={false} // Don't refetch when offline
+    >
       <ThemeProvider>
         <QueryProvider>
           <SocketProvider>
