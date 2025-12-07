@@ -297,14 +297,15 @@ def generate_token(user_id: str, email: str, role: str) -> str:
             raise ValueError('JWT_SECRET_KEY not configured')
         
         # Create token payload
+        now = datetime.now(timezone.utc)
         payload = {
             'user_id': user_id,
             'id': user_id,  # Include both for compatibility
             'sub': user_id,  # Standard JWT claim
             'email': email,
             'role': role,
-            'iat': datetime.now(timezone.utc),
-            'exp': datetime.now(timezone.utc) + timedelta(days=7)  # Token expires in 7 days
+            'iat': int(now.timestamp()),  # Issued at (Unix timestamp)
+            'exp': int((now + timedelta(days=7)).timestamp())  # Expires in 7 days (Unix timestamp)
         }
         
         # Generate JWT token
@@ -314,7 +315,7 @@ def generate_token(user_id: str, email: str, role: str) -> str:
             algorithm='HS256'
         )
         
-        current_app.logger.info(f'✅ Generated JWT token for user: {email}')
+        current_app.logger.info(f'✅ Generated JWT token for user ID: {user_id}')
         return token
         
     except Exception as e:
