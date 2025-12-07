@@ -113,10 +113,17 @@ def token_required(f):
     - Updated to use user headers from Next.js API routes
     - Falls back to JWT token validation for direct API access
     - Provides seamless auth integration with Next.js frontend
+    
+    IMPORTANT: For Flask-RESTX Resource methods
+    - Sets request.current_user with user payload
+    - Does NOT pass current_user as kwarg (Resource methods don't accept extra kwargs)
+    - Use get_current_user() inside the method to access user info
 
     Usage:
         @token_required
         def protected_route():
+            # Access user via get_current_user()
+            current_user = get_current_user()
             # This route requires valid NextAuth session
             pass
 
@@ -137,10 +144,9 @@ def token_required(f):
         user_payload = extract_user_from_headers()
 
         if user_payload:
-            # Add user info to request context
+            # Add user info to request context (accessible via get_current_user())
             request.current_user = user_payload
-            # Pass current_user as keyword argument to the wrapped function
-            kwargs['current_user'] = user_payload
+            # Call the original function - user info available via get_current_user()
             return f(*args, **kwargs)
 
         # Fallback: try JWT token validation for direct API access
@@ -187,13 +193,10 @@ def token_required(f):
                 'message': 'Invalid or expired token'
             }, 401
 
-        # Add user info to request context
+        # Add user info to request context (accessible via get_current_user())
         request.current_user = user_payload
 
-        # Pass current_user as keyword argument to the wrapped function
-        kwargs['current_user'] = user_payload
-
-        # Call the original function
+        # Call the original function - user info available via get_current_user()
         return f(*args, **kwargs)
 
     return decorated
@@ -204,10 +207,17 @@ def admin_required(f):
     Decorator to protect routes that require admin role.
 
     Updated to work with NextAuth user headers and token fallback.
+    
+    IMPORTANT: For Flask-RESTX Resource methods
+    - Sets request.current_user with user payload
+    - Does NOT pass current_user as kwarg (Resource methods don't accept extra kwargs)
+    - Use get_current_user() inside the method to access user info
 
     Usage:
         @admin_required
         def admin_only_route():
+            # Access user via get_current_user()
+            current_user = get_current_user()
             # This route requires admin role
             pass
 
@@ -266,12 +276,10 @@ def admin_required(f):
                 'message': 'Admin access required'
             }, 403
 
-        # Add user info to request
+        # Add user info to request context (accessible via get_current_user())
         request.current_user = user_payload
 
-        # Pass current_user as keyword argument to the wrapped function
-        kwargs['current_user'] = user_payload
-
+        # Call the original function - user info available via get_current_user()
         return f(*args, **kwargs)
 
     return decorated
