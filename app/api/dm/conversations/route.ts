@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
 
     console.log('[DM Conversations API] Session check:', {
       hasSession: true,
-      userId: authData.userId,
+      userId: (authData.session.user as any).id,
       hasAuthHeaders: !!authData.headers['Authorization']
     });
 
