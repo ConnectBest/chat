@@ -193,11 +193,11 @@ def delete_avatar(filename, current_user):
             Key=filename
         )
         
-        return ({'success': True, 'message': 'Avatar deleted'}), 200
+        return {'success': True, 'message': 'Avatar deleted'}, 200
         
     except ClientError as e:
         print(f"AWS S3 Error: {str(e)}")
-        return ({'error': 'Failed to delete from S3'}), 500
+        return {'error': 'Failed to delete from S3'}, 500
     except Exception as e:
         print(f"Error deleting avatar: {str(e)}")
-        return ({'error': 'Failed to delete avatar'}), 500
+        return {'error': 'Failed to delete avatar'}, 500

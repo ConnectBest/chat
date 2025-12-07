@@ -3,6 +3,34 @@ Simplified Authentication Routes - Email verification and user utilities
 
 IMPORTANT: Primary authentication (login/logout/OAuth) is now handled by NextAuth.js
 This module only provides supplementary functionality that NextAuth doesn't handle.
+
+RETURN FORMAT STANDARDS FOR FLASK-RESTX:
+=========================================
+All endpoints in this module and across the application MUST follow these standards:
+
+1. ALWAYS return JSON-serializable data types (dict, list, str, int, float, bool, None)
+2. NEVER return Flask Response objects directly (use dict with status code instead)
+3. Standard success response format:
+   return {'key': 'value', ...}, 200
+   
+4. Standard error response format:
+   return {'error': 'Error message', 'details': '...'}, 4xx/5xx
+   
+5. For endpoints that need redirects (like OAuth callbacks):
+   return {'redirect_url': 'https://...', 'token': '...', ...}, 200
+   (Let the frontend handle the actual redirect)
+   
+6. Tuples should have exactly 2 elements: (data_dict, status_code)
+   CORRECT:   return {'data': value}, 200
+   INCORRECT: return ({'data': value}), 200  # Extra parentheses create single-element tuple
+   
+7. Optional third element for custom headers:
+   return {'data': value}, 200, {'Custom-Header': 'value'}
+   
+8. Flask-RESTX will automatically serialize the dict to JSON
+   DO NOT use jsonify() - it creates Response objects that break serialization
+
+These standards ensure consistent, error-free communication between frontend and backend.
 """
 
 from flask import request, current_app

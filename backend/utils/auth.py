@@ -275,15 +275,51 @@ def get_current_user() -> Optional[Dict[str, Any]]:
 # Legacy functions - kept for backward compatibility but deprecated
 def generate_token(user_id: str, email: str, role: str) -> str:
     """
-    DEPRECATED: Legacy function for custom JWT generation.
-
-    Use NextAuth.js for token generation instead.
-    This function is kept for backward compatibility only.
+    Generate a JWT token for user authentication.
+    
+    This function is used for OAuth flows where NextAuth is not handling the callback.
+    For standard authentication flows, NextAuth.js should be used instead.
+    
+    Args:
+        user_id: User's unique identifier
+        email: User's email address
+        role: User's role (admin, user, etc.)
+    
+    Returns:
+        JWT token string
     """
-    current_app.logger.warning('generate_token() is deprecated - use NextAuth.js for authentication')
-
-    # Return a dummy token to maintain compatibility
-    return "deprecated_use_nextauth"
+    try:
+        # Get JWT secret from configuration
+        jwt_secret = current_app.config.get('JWT_SECRET_KEY')
+        
+        if not jwt_secret:
+            current_app.logger.error('JWT_SECRET_KEY not configured')
+            raise ValueError('JWT_SECRET_KEY not configured')
+        
+        # Create token payload
+        payload = {
+            'user_id': user_id,
+            'id': user_id,  # Include both for compatibility
+            'sub': user_id,  # Standard JWT claim
+            'email': email,
+            'role': role,
+            'iat': datetime.utcnow(),
+            'exp': datetime.utcnow() + timedelta(days=7)  # Token expires in 7 days
+        }
+        
+        # Generate JWT token
+        token = jwt.encode(
+            payload,
+            jwt_secret,
+            algorithm='HS256'
+        )
+        
+        current_app.logger.info(f'✅ Generated JWT token for user: {email}')
+        return token
+        
+    except Exception as e:
+        current_app.logger.error(f'Error generating token: {str(e)}')
+        raise
 
 
 def verify_token(token: str) -> Optional[Dict[str, Any]]:
