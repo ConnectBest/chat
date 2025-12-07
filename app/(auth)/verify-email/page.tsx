@@ -1,7 +1,6 @@
 "use client";
 import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { signIn } from 'next-auth/react';
 import { Button } from '@/components/ui/Button';
 import Link from 'next/link';
 
