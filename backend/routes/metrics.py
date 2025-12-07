@@ -226,6 +226,7 @@ class SystemMetrics(Resource):
     @metrics_ns.doc('get_system_metrics', security='Bearer')
     def get(self):
         """Get current system metrics from CloudWatch Container Insights"""
+        current_user = get_current_user()  # Required for authentication
         try:
             # ECS service dimensions
             dimensions = get_ecs_service_dimensions()
@@ -310,6 +311,7 @@ class TimeSeriesMetrics(Resource):
     })
     def get(self, metric_type):
         """Get time series data for specific metrics"""
+        current_user = get_current_user()  # Required for authentication
         try:
             # Parse query parameters
             period_minutes = int(request.args.get('period', 60))
@@ -490,6 +492,7 @@ class CloudWatchAlarms(Resource):
     @metrics_ns.doc('get_cloudwatch_alarms', security='Bearer')
     def get(self):
         """Get CloudWatch alarms status for proactive monitoring"""
+        current_user = get_current_user()  # Required for authentication
         try:
             # Get all alarms related to our ECS service
             response = cloudwatch.describe_alarms(
@@ -557,6 +560,7 @@ class CostMetrics(Resource):
     @metrics_ns.doc('get_cost_metrics', security='Bearer')
     def get(self):
         """Get AWS cost metrics and optimization recommendations"""
+        current_user = get_current_user()  # Required for authentication
         try:
             # Get cost data from AWS Cost Explorer
             end_date = datetime.utcnow().date()
@@ -650,6 +654,7 @@ class SecurityMetrics(Resource):
     @metrics_ns.doc('get_security_metrics', security='Bearer')
     def get(self):
         """Get security monitoring and compliance metrics"""
+        current_user = get_current_user()  # Required for authentication
         try:
             # In production, this would integrate with AWS GuardDuty, Security Hub, etc.
             # For development environment, simulating realistic security metrics
