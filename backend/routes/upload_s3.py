@@ -10,6 +10,9 @@ import boto3
 from botocore.exceptions import ClientError
 from werkzeug.utils import secure_filename
 from utils.auth import token_required
+import logging
+
+logger = logging.getLogger(__name__)
 
 upload_s3_bp = Blueprint('upload_s3', __name__)
 
@@ -109,10 +112,10 @@ def upload_avatar(current_user):
         }, 200
 
     except ClientError as e:
-        print(f"AWS S3 Error: {str(e)}")
+        logger.error(f"AWS S3 Error: {str(e)}")
         return {'error': 'Failed to upload to S3'}, 500
     except Exception as e:
-        print(f"Error uploading avatar: {str(e)}")
+        logger.error(f"Error uploading avatar: {str(e)}")
         return {'error': 'Failed to upload avatar'}, 500
 
 @upload_s3_bp.route('/message-file', methods=['POST'])
@@ -176,10 +179,10 @@ def upload_message_file(current_user):
         }, 200
 
     except ClientError as e:
-        print(f"AWS S3 Error: {str(e)}")
+        logger.error(f"AWS S3 Error: {str(e)}")
         return {'error': 'Failed to upload to S3'}, 500
     except Exception as e:
-        print(f"Error uploading message file: {str(e)}")
+        logger.error(f"Error uploading message file: {str(e)}")
         return {'error': 'Failed to upload file'}, 500
 
 @upload_s3_bp.route('/delete/<path:filename>', methods=['DELETE'])
@@ -196,8 +199,8 @@ def delete_avatar(filename, current_user):
         return {'success': True, 'message': 'Avatar deleted'}, 200
         
     except ClientError as e:
-        print(f"AWS S3 Error: {str(e)}")
+        logger.error(f"AWS S3 Error: {str(e)}")
         return {'error': 'Failed to delete from S3'}, 500
     except Exception as e:
-        print(f"Error deleting avatar: {str(e)}")
+        logger.error(f"Error deleting avatar: {str(e)}")
         return {'error': 'Failed to delete avatar'}, 500
