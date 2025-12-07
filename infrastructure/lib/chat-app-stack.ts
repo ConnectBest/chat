@@ -262,7 +262,11 @@ export class ChatAppStack extends cdk.Stack {
         // NextAuth Configuration for frontend
         NEXTAUTH_URL: 'https://chat.connect-best.com',
         NEXTAUTH_SECRET: nextAuthSecret,
-        NEXTAUTH_DEBUG: 'false' // Disable NextAuth debug logging (production ready)
+        NEXTAUTH_DEBUG: 'false', // Disable NextAuth debug logging (production ready)
+
+        // JWT Configuration for Flask backend compatibility - CRITICAL
+        JWT_SECRET_KEY: jwtSecretKey,
+        JWT_EXPIRATION_HOURS: '168'
       }
     });
 

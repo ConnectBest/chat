@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { getUserHeaders } from '@/lib/apiUtils';
 import type { NextRequest } from 'next/server';
 
 // Use internal backend URL for server-side API route communication
@@ -14,17 +14,10 @@ export async function GET(
   try {
     console.log(`[Messages API] Fetching messages for channel ${channelId}, backend URL:`, BACKEND_URL);
 
-    // Get current session to verify authentication (NextAuth v5 API route style)
-    const session = await auth(request as any, {} as any);
+    // Get authenticated headers with JWT token
+    const authData = await getUserHeaders(request);
 
-    console.log('[Messages API] Session check:', {
-      hasSession: !!session,
-      hasUser: !!session?.user,
-      userId: session?.user ? (session.user as any).id : null,
-      channelId
-    });
-
-    if (!session?.user) {
+    if (!authData) {
       console.error('[Messages API] No authenticated session');
       return NextResponse.json(
         { error: 'Authentication required' },
@@ -32,23 +25,8 @@ export async function GET(
       );
     }
 
-    // Create headers with user info for Flask backend
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'X-User-ID': (session.user as any).id,
-      'X-User-Email': session.user.email || '',
-      'X-User-Role': (session.user as any).role || 'user'
-    };
-
-    console.log('[Messages API] Sending headers to backend:', {
-      userId: headers['X-User-ID'],
-      email: headers['X-User-Email'],
-      role: headers['X-User-Role'],
-      channelId
-    });
-
     const response = await fetch(`${BACKEND_URL}/api/chat/channels/${channelId}/messages`, {
-      headers
+      headers: authData.headers
     });
 
     if (!response.ok) {

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { getUserHeaders } from '@/lib/apiUtils';
 import type { NextRequest } from 'next/server';
 
 // Use internal backend URL for server-side API route communication
@@ -9,18 +9,10 @@ export async function GET(request: NextRequest) {
   try {
     console.log('[Channels API] Fetching channels, backend URL:', BACKEND_URL);
 
-    // Get current session to verify authentication (NextAuth v5 API route style)
-    // In NextAuth v5 API routes, we need to create a proper auth context
-    const session = await auth(request as any, {} as any);
+    // Get authenticated headers with JWT token
+    const authData = await getUserHeaders(request);
 
-    console.log('[Channels API] Session check:', {
-      hasSession: !!session,
-      hasUser: !!session?.user,
-      userId: session?.user ? (session.user as any).id : null,
-      cookies: request.cookies.getAll().map(c => ({ name: c.name, hasValue: !!c.value }))
-    });
-
-    if (!session?.user) {
+    if (!authData) {
       console.error('[Channels API] No authenticated session');
       return NextResponse.json(
         { error: 'Authentication required' },
@@ -28,22 +20,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Create headers with user info for Flask backend
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'X-User-ID': (session.user as any).id,
-      'X-User-Email': session.user.email || '',
-      'X-User-Role': (session.user as any).role || 'user'
-    };
-
-    console.log('[Channels API] Sending headers to backend:', {
-      userId: headers['X-User-ID'],
-      email: headers['X-User-Email'],
-      role: headers['X-User-Role']
-    });
-
     const response = await fetch(`${BACKEND_URL}/api/chat/channels`, {
-      headers
+      headers: authData.headers
     });
 
     if (!response.ok) {
@@ -72,10 +50,10 @@ export async function POST(request: Request) {
 
     console.log('[Channels API] Creating channel, backend URL:', BACKEND_URL);
 
-    // Get current session to verify authentication (NextAuth v5 API route style)
-    const session = await auth(request as any, {} as any);
+    // Get authenticated headers with JWT token
+    const authData = await getUserHeaders(request as NextRequest);
 
-    if (!session?.user) {
+    if (!authData) {
       console.error('[Channels API] No authenticated session');
       return NextResponse.json(
         { error: 'Authentication required' },
@@ -83,17 +61,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create headers with user info for Flask backend
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'X-User-ID': (session.user as any).id,
-      'X-User-Email': session.user.email || '',
-      'X-User-Role': (session.user as any).role || 'user'
-    };
-
     const response = await fetch(`${BACKEND_URL}/api/chat/channels`, {
       method: 'POST',
-      headers,
+      headers: authData.headers,
       body: JSON.stringify(body),
     });
 

@@ -56,7 +56,9 @@
       "Bash(npm cache clean:*)",
       "Bash(python -m py_compile:*)",
       "Bash(grep:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(./scripts/verify-jwt-config.sh:*)",
+      "Bash(./scripts/setup-jwt-secret.sh:*)"
     ],
     "deny": [],
     "ask": []

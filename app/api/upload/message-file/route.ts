@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { getUserHeaders } from '@/lib/apiUtils';
 import type { NextRequest } from 'next/server';
 
 // Use internal backend URL for server-side API route communication
@@ -9,10 +9,10 @@ export async function POST(request: NextRequest) {
   try {
     console.log('[Upload API] Uploading file');
 
-    // Get current session to verify authentication
-    const session = await auth(request as any, {} as any);
+    // Get authenticated headers with JWT token
+    const authData = await getUserHeaders(request);
 
-    if (!session?.user) {
+    if (!authData) {
       console.error('[Upload API] No authenticated session');
       return NextResponse.json(
         { error: 'Authentication required' },
@@ -23,12 +23,13 @@ export async function POST(request: NextRequest) {
     // Get the form data from the request
     const formData = await request.formData();
 
-    // Create headers with user info for Flask backend
-    // Note: Don't set Content-Type for multipart/form-data, let fetch handle it
+    // Create headers WITHOUT Content-Type for multipart/form-data
+    // The browser will set the correct boundary
     const headers: Record<string, string> = {
-      'X-User-ID': (session.user as any).id,
-      'X-User-Email': session.user.email || '',
-      'X-User-Role': (session.user as any).role || 'user'
+      'Authorization': authData.headers['Authorization'],
+      'X-User-ID': authData.headers['X-User-ID'],
+      'X-User-Email': authData.headers['X-User-Email'],
+      'X-User-Role': authData.headers['X-User-Role']
     };
 
     const response = await fetch(`${BACKEND_URL}/api/upload/message-file`, {

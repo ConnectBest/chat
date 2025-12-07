@@ -5,6 +5,63 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { getMongoClient } from './mongodb';
 
+/**
+ * Generate a Flask-compatible JWT token using Node.js crypto
+ * This matches the format expected by Flask's @token_required decorator
+ */
+function generateFlaskJwt(userId: string, email: string, role: string, name?: string, phone?: string): string {
+  const jwtSecret = process.env.JWT_SECRET_KEY || process.env.NEXTAUTH_SECRET;
+
+  if (!jwtSecret) {
+    throw new Error('JWT_SECRET_KEY not configured');
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const expirationHours = parseInt(process.env.JWT_EXPIRATION_HOURS || '168', 10);
+
+  // Create JWT payload matching Flask backend expectations
+  const header = {
+    alg: 'HS256',
+    typ: 'JWT'
+  };
+
+  const payload = {
+    user_id: userId,
+    id: userId,
+    sub: userId,
+    email: email,
+    role: role || 'user',
+    name: name,
+    phone: phone,
+    iat: now,
+    exp: now + (expirationHours * 60 * 60)
+  };
+
+  // Encode header and payload
+  const base64UrlEncode = (obj: any) => {
+    return Buffer.from(JSON.stringify(obj))
+      .toString('base64')
+      .replace(/=/g, '')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_');
+  };
+
+  const encodedHeader = base64UrlEncode(header);
+  const encodedPayload = base64UrlEncode(payload);
+
+  // Create signature using HMAC SHA256
+  const crypto = require('crypto');
+  const signature = crypto
+    .createHmac('sha256', jwtSecret)
+    .update(`${encodedHeader}.${encodedPayload}`)
+    .digest('base64')
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+
+  return `${encodedHeader}.${encodedPayload}.${signature}`;
+}
+
 // Extended user type with role and phone
 export interface ExtendedUser {
   id: string;
@@ -179,6 +236,24 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.role = (user as any).role || 'user';
         token.phone = (user as any).phone;
         token.emailVerified = (user as any).emailVerified;
+
+        // Generate Flask-compatible JWT token for backend API calls
+        // This token matches the format expected by Flask's @token_required decorator
+        try {
+          const flaskJwt = generateFlaskJwt(
+            token.id as string,
+            token.email as string,
+            token.role as string,
+            token.name as string | undefined,
+            token.phone as string | undefined
+          );
+
+          token.flaskAccessToken = flaskJwt;
+          console.log('✅ [NextAuth] Generated Flask-compatible JWT token for user:', token.email);
+        } catch (error) {
+          console.error('❌ [NextAuth] Error generating Flask JWT:', error);
+          // Don't block login, but log the error
+        }
       }
       return token;
     },
@@ -189,9 +264,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         (session.user as any).phone = token.phone;
         (session.user as any).emailVerified = token.emailVerified;
 
-        // Include the JWT token in the session for API calls to Flask backend
-        // This is the actual NextAuth JWT token that Flask can validate
-        (session.user as any).accessToken = token;
+        // CRITICAL FIX: Include Flask-compatible JWT token for API calls
+        // This token is signed with JWT_SECRET_KEY and can be validated by Flask backend
+        (session.user as any).accessToken = token.flaskAccessToken;
       }
       return session;
     },

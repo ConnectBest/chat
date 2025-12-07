@@ -26,19 +26,28 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Create headers with user info for Flask backend
+    // Create headers with JWT Bearer token for Flask backend
+    // Flask expects: Authorization: Bearer <jwt_token>
+    const accessToken = (session.user as any).accessToken;
+
+    if (!accessToken) {
+      console.error('[Users/Me API] No access token found in session');
+      return NextResponse.json(
+        { error: 'No access token available' },
+        { status: 401 }
+      );
+    }
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+      // Keep user headers as fallback for backend compatibility
       'X-User-ID': (session.user as any).id,
       'X-User-Email': session.user.email || '',
       'X-User-Role': (session.user as any).role || 'user'
     };
 
-    console.log('[Users/Me API] Sending headers to backend:', {
-      userId: headers['X-User-ID'],
-      email: headers['X-User-Email'],
-      role: headers['X-User-Role']
-    });
+    console.log('[Users/Me API] Sending JWT token to backend for user:', session.user.email);
 
     const response = await fetch(`${BACKEND_URL}/api/users/me`, {
       headers
@@ -81,9 +90,22 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Create headers with user info for Flask backend
+    // Create headers with JWT Bearer token for Flask backend
+    // Flask expects: Authorization: Bearer <jwt_token>
+    const accessToken = (session.user as any).accessToken;
+
+    if (!accessToken) {
+      console.error('[Users/Me API] No access token found in session');
+      return NextResponse.json(
+        { error: 'No access token available' },
+        { status: 401 }
+      );
+    }
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+      // Keep user headers as fallback for backend compatibility
       'X-User-ID': (session.user as any).id,
       'X-User-Email': session.user.email || '',
       'X-User-Role': (session.user as any).role || 'user'
