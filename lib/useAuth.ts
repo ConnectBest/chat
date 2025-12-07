@@ -1,8 +1,13 @@
+"use client";
 /**
  * Custom useAuth hook wrapping NextAuth's useSession
  * Provides a convenient interface for authentication state
+ * 
+ * @param required - If true, redirects to /login when unauthenticated
+ * @returns Authentication state with session, status, and isAuthenticated flag
+ * 
+ * Note: The Next.js router object is stable and excluded from useEffect deps
  */
-"use client";
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
@@ -20,8 +25,7 @@ export function useAuth(required = false) {
     if (required && session.status === 'unauthenticated') {
       router.push('/login');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [required, session.status]); // router is stable and doesn't need to be in deps
+  }, [required, session.status, router]);
   
   return {
     session: session.data,
