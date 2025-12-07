@@ -5,9 +5,23 @@
  * The Next.js API routes handle authentication via NextAuth session and forward requests
  * to the Flask backend with proper user headers (X-User-ID, X-User-Email, X-User-Role).
  * 
+ * IMPORTANT: Authentication is now handled via NextAuth
+ * - For login: Use NextAuth's signIn() from 'next-auth/react'
+ * - For logout: Use NextAuth's signOut() from 'next-auth/react'
+ * - For registration: Use the /api/auth/register endpoint directly
+ * - All API calls automatically use the current NextAuth session
+ * 
  * NOTE: This uses Next.js API routes (not direct Flask calls) to ensure proper authentication.
- * All token parameters are deprecated and ignored - authentication is handled via NextAuth session.
+ * All token parameters have been removed - authentication is handled via NextAuth session.
  */
+
+// Type definitions for common data structures
+interface FileAttachment {
+  name: string;
+  size: number;
+  type: string;
+  url: string;
+}
 
 // Helper function to make authenticated API calls to Next.js API routes
 async function fetchAPI(endpoint: string, options: RequestInit = {}) {
@@ -29,6 +43,7 @@ async function fetchAPI(endpoint: string, options: RequestInit = {}) {
 
 export const api = {
   // Auth - use Next.js API routes
+  // NOTE: For login/logout, use NextAuth's signIn()/signOut() instead
   me: () => fetchAPI('/api/auth/me'),
   
   // Channels - use Next.js API routes
@@ -41,7 +56,7 @@ export const api = {
   
   // Messages - use Next.js API routes
   listMessages: (channelId: string) => fetchAPI(`/api/chat/channels/${channelId}/messages`),
-  sendMessage: (channelId: string, content: string, attachments?: Array<{name: string; size: number; type: string; url: string}>) => 
+  sendMessage: (channelId: string, content: string, attachments?: FileAttachment[]) => 
     fetchAPI(`/api/chat/channels/${channelId}/messages/send`, {
       method: 'POST',
       body: JSON.stringify({ content, attachments }),
@@ -78,7 +93,7 @@ export const api = {
   
   // Direct Messages - use Next.js API routes
   listDMMessages: (recipientId: string) => fetchAPI(`/api/dm/users/${recipientId}/messages`),
-  sendDMMessage: (recipientId: string, content: string, attachments?: Array<{name: string; size: number; type: string; url: string}>) => 
+  sendDMMessage: (recipientId: string, content: string, attachments?: FileAttachment[]) => 
     fetchAPI(`/api/dm/users/${recipientId}/messages`, {
       method: 'POST',
       body: JSON.stringify({ content, attachments }),

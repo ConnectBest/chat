@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { getUserHeaders } from '@/lib/apiUtils';
 import type { NextRequest } from 'next/server';
 
 // Use internal backend URL for server-side API route communication
@@ -9,16 +9,10 @@ export async function GET(request: NextRequest) {
   try {
     console.log('[Users API] Fetching users, backend URL:', BACKEND_URL);
 
-    // Get current session to verify authentication
-    const session = await auth(request as any, {} as any);
+    // Get current session and user headers
+    const authData = await getUserHeaders(request);
 
-    console.log('[Users API] Session check:', {
-      hasSession: !!session,
-      hasUser: !!session?.user,
-      userId: session?.user ? (session.user as any).id : null,
-    });
-
-    if (!session?.user) {
+    if (!authData) {
       console.error('[Users API] No authenticated session');
       return NextResponse.json(
         { error: 'Authentication required' },
@@ -26,13 +20,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Create headers with user info for Flask backend
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'X-User-ID': (session.user as any).id,
-      'X-User-Email': session.user.email || '',
-      'X-User-Role': (session.user as any).role || 'user'
-    };
+    const { headers } = authData;
 
     console.log('[Users API] Sending headers to backend:', {
       userId: headers['X-User-ID'],
