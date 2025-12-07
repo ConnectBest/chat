@@ -1,7 +1,11 @@
 "use client";
-// TODO: Refactor this component to use NextAuth session and Next.js API routes
-// Currently uses localStorage tokens and direct Flask API calls
-// See: lib/useAuth.ts for NextAuth integration pattern
+/**
+ * ChannelView Component
+ * 
+ * Updated to use NextAuth session and Next.js API routes for authentication.
+ * All API calls now go through Next.js API routes which handle authentication
+ * and forward requests to Flask backend with proper user headers.
+ */
 import React, { useEffect, useState, useRef } from 'react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
@@ -19,7 +23,6 @@ import { Avatar } from '@/components/ui/Avatar';
 import { UserProfilePopover } from '@/components/ui/UserProfilePopover';
 import { ClipsRecorder } from './ClipsRecorder';
 import { AIChatPanel } from './AIChatPanel';
-import { getApiUrl } from '@/lib/apiConfig';
 
 interface Message { 
   id: string; 
@@ -99,14 +102,10 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
   // Function to notify typing status
   const notifyTyping = async (isTyping: boolean) => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-      
-      await fetch(getApiUrl(`chat/channels/${channelId}/typing`), {
+      await fetch(`/api/chat/channels/${channelId}/typing`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ typing: isTyping })
       });
@@ -119,12 +118,7 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
   useEffect(() => {
     const fetchTypingUsers = async () => {
       try {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-        
-        const response = await fetch(getApiUrl(`chat/channels/${channelId}/typing`), {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const response = await fetch(`/api/chat/channels/${channelId}/typing`);
         
         if (response.ok) {
           const data = await response.json();
@@ -155,10 +149,7 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
     // Fetch current user info
     const fetchCurrentUser = async () => {
       try {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-        
-        const data = await api.me(token);
+        const data = await api.me();
         if (data.user && mounted) {
           setCurrentUserId(data.user.id);
         }
@@ -173,12 +164,7 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
     const fetchChannelDetails = async () => {
       if (!isDM) {
         try {
-          const token = localStorage.getItem('token');
-          if (!token) return;
-
-          const response = await fetch(getApiUrl('chat/channels'), {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
+          const response = await fetch('/api/chat/channels');
 
           if (response.ok) {
             const data = await response.json();
@@ -199,12 +185,7 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
       // Fetch DM user data from backend
       const fetchDmUser = async () => {
         try {
-          const token = localStorage.getItem('token');
-          if (!token) return;
-
-          const response = await fetch(getApiUrl('users'), {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
+          const response = await fetch('/api/users');
 
           if (response.ok) {
             const data = await response.json();
@@ -232,10 +213,7 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
       // Load DM messages from backend
       const fetchDmMessages = async () => {
         try {
-          const token = localStorage.getItem('token');
-          if (!token) return;
-          
-          const data = await api.listDMMessages(dmUserId, token);
+          const data = await api.listDMMessages(dmUserId);
           if (mounted) {
             // Reverse messages so oldest is at top, newest at bottom
             setMessages((data.messages || []).reverse());
@@ -244,11 +222,10 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
             if (data.dm_channel_id) {
               setTimeout(async () => {
                 try {
-                  await fetch(getApiUrl(`dm/channels/${data.dm_channel_id}/read`), {
+                  await fetch(`/api/dm/channels/${data.dm_channel_id}/read`, {
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${token}`
                     }
                   });
                   console.log('✅ Marked DM as read:', data.dm_channel_id);
@@ -267,32 +244,28 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
       
       fetchDmMessages();
     } else {
-      const token = localStorage.getItem('token');
-      if (token) {
-        api.listMessages(channelId, token).then(data => {
-          if (mounted) {
-            // Reverse messages so oldest is at top, newest at bottom
-            setMessages((data.messages || []).reverse());
-            
-            // Mark channel as read after a short delay to ensure messages are loaded
-            setTimeout(() => {
-              fetch(getApiUrl(`chat/channels/${channelId}/read`), {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`
-                }
-              }).then(() => {
-                console.log('✅ Marked channel as read:', channelId);
-                // Immediately refresh sidebar to clear notification
-                window.dispatchEvent(new Event('refreshSidebar'));
-              }).catch(error => {
-                console.error('Failed to mark channel as read:', error);
-              });
-            }, 500);
-          }
-        });
-      }
+      api.listMessages(channelId).then(data => {
+        if (mounted) {
+          // Reverse messages so oldest is at top, newest at bottom
+          setMessages((data.messages || []).reverse());
+          
+          // Mark channel as read after a short delay to ensure messages are loaded
+          setTimeout(() => {
+            fetch(`/api/chat/channels/${channelId}/read`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              }
+            }).then(() => {
+              console.log('✅ Marked channel as read:', channelId);
+              // Immediately refresh sidebar to clear notification
+              window.dispatchEvent(new Event('refreshSidebar'));
+            }).catch(error => {
+              console.error('Failed to mark channel as read:', error);
+            });
+          }, 500);
+        }
+      });
     }
     
     // TODO: Socket.io listener for typing events
@@ -307,22 +280,18 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
       if (!mounted) return;
       
       try {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-        
         if (isDM && dmUserId) {
-          const data = await api.listDMMessages(dmUserId, token);
+          const data = await api.listDMMessages(dmUserId);
           if (mounted && data.messages) {
             setMessages(data.messages.reverse());
             
             // Mark DM as read after fetching new messages
             if (data.dm_channel_id) {
               try {
-                await fetch(getApiUrl(`dm/channels/${data.dm_channel_id}/read`), {
+                await fetch(`/api/dm/channels/${data.dm_channel_id}/read`, {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
                   }
                 });
                 console.log('✅ Marked DM as read during polling:', data.dm_channel_id);
@@ -333,17 +302,16 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
             }
           }
         } else {
-          const data = await api.listMessages(channelId, token);
+          const data = await api.listMessages(channelId);
           if (mounted && data.messages) {
             setMessages(data.messages.reverse());
             
             // Mark channel as read after fetching new messages
             try {
-              await fetch(getApiUrl(`chat/channels/${channelId}/read`), {
+              await fetch(`/api/chat/channels/${channelId}/read`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`
                 }
               });
               console.log('✅ Marked channel as read during polling:', channelId);
@@ -375,15 +343,9 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
     notifyTyping(false);
     
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        alert('Please log in to send messages');
-        return;
-      }
-
       // For DM, send via DM API
       if (isDM && dmUserId) {
-        const { message } = await api.sendDMMessage(dmUserId, content.trim() || '📎 File attachment', token, attachedFiles.length > 0 ? attachedFiles : undefined);
+        const { message } = await api.sendDMMessage(dmUserId, content.trim() || '📎 File attachment', attachedFiles.length > 0 ? attachedFiles : undefined);
         setMessages(prev => [...prev, { ...message, reactions: [] }]);
         setContent('');
         setAttachedFiles([]);
@@ -391,7 +353,7 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
         // Extract link preview
         const linkPreview = await extractLinkPreview(content);
         
-        const { message } = await api.sendMessage(channelId, content.trim() || '📎 File attachment', token, attachedFiles.length > 0 ? attachedFiles : undefined);
+        const { message } = await api.sendMessage(channelId, content.trim() || '📎 File attachment', attachedFiles.length > 0 ? attachedFiles : undefined);
         setMessages(prev => [...prev, { ...message, reactions: [], linkPreview: linkPreview || undefined }]);
         setContent('');
         setAttachedFiles([]);
@@ -407,12 +369,6 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
     setShowEmojiPicker(null); // Close picker after selection
 
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        alert('Please log in to add reactions');
-        return;
-      }
-
       // Find the current message to check if user already reacted with this emoji
       const currentMessage = messages.find(m => m.id === messageId);
       const currentUserReacted = currentMessage?.reactions?.find(r =>
@@ -422,10 +378,10 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
       let data;
       if (currentUserReacted) {
         // User already reacted with this emoji, so remove the reaction
-        data = await api.removeReaction(channelId, messageId, token);
+        data = await api.removeReaction(channelId, messageId);
       } else {
         // User is adding/changing their reaction
-        data = await api.addReaction(channelId, messageId, emoji, token);
+        data = await api.addReaction(channelId, messageId, emoji);
       }
 
       // Update local state with backend response
@@ -444,14 +400,8 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
   async function handleFileUpload(files: File[]) {
     // Upload files to backend and store URLs
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        alert('Please log in to upload files');
-        return;
-      }
-
       for (const file of files) {
-        const uploadResult = await api.uploadFile(file, token);
+        const uploadResult = await api.uploadFile(file);
         // Add the uploaded file info to attachedFiles with the backend URL
         setAttachedFiles(prev => [...prev, {
           name: uploadResult.original_name,
@@ -566,18 +516,11 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
     if (!editContent.trim()) return;
     
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        alert('Please log in to edit messages');
-        return;
-      }
-
       // Call backend API to update message
-      const response = await fetch(getApiUrl(`chat/messages/${messageId}`), {
+      const response = await fetch(`/api/chat/messages/${messageId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ content: editContent.trim() })
       });
@@ -605,18 +548,9 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
     if (!confirm('Delete this message? This cannot be undone.')) return;
     
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        alert('Please log in to delete messages');
-        return;
-      }
-
       // Call backend API to delete message
-      const response = await fetch(getApiUrl(`chat/messages/${messageId}`), {
+      const response = await fetch(`/api/chat/messages/${messageId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
       });
 
       if (!response.ok) {
@@ -638,18 +572,9 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
 
   async function toggleBookmarkMessage(messageId: string) {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        alert('Please log in to bookmark messages');
-        return;
-      }
-
       // Call backend API to toggle bookmark
-      const response = await fetch(getApiUrl(`chat/messages/${messageId}/bookmark`), {
+      const response = await fetch(`/api/chat/messages/${messageId}/bookmark`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
       });
 
       if (!response.ok) {
