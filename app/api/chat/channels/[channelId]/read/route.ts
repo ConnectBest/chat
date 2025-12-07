@@ -7,10 +7,10 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5001';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { channelId: string } }
+  { params }: { params: Promise<{ channelId: string }> }
 ) {
   try {
-    const { channelId } = params;
+    const { channelId } = await params;
     console.log('[Channel Read API] Marking channel as read:', channelId);
 
     // Get current session to verify authentication

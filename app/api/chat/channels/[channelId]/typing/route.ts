@@ -7,10 +7,10 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5001';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { channelId: string } }
+  { params }: { params: Promise<{ channelId: string }> }
 ) {
   try {
-    const { channelId } = params;
+    const { channelId } = await params;
     console.log('[Typing API] Fetching typing users for channel:', channelId);
 
     // Get current session to verify authentication
@@ -58,10 +58,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { channelId: string } }
+  { params }: { params: Promise<{ channelId: string }> }
 ) {
   try {
-    const { channelId } = params;
+    const { channelId } = await params;
     const body = await request.json().catch(() => ({}));
     console.log('[Typing API] Setting typing status for channel:', channelId);
 
