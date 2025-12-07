@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getUserHeaders } from '@/lib/apiUtils';
+import type { NextRequest } from 'next/server';
 
 // Use internal backend URL for server-side API route communication
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5001';
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
     console.log('[DM Conversations API] Fetching conversations, backend URL:', BACKEND_URL);
 
