@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from flask import current_app, request
 from flask_restx import Namespace, Resource, fields
-from utils.auth import token_required
+from utils.auth import token_required, get_current_user
 
 metrics_ns = Namespace('metrics', description='Enterprise system metrics and advanced monitoring operations')
 
@@ -224,7 +224,7 @@ class SystemMetrics(Resource):
     @token_required
     @metrics_ns.marshal_with(metrics_model)
     @metrics_ns.doc('get_system_metrics', security='Bearer')
-    def get(self, current_user):
+    def get(self):
         """Get current system metrics from CloudWatch Container Insights"""
         try:
             # ECS service dimensions
@@ -308,7 +308,7 @@ class TimeSeriesMetrics(Resource):
         'period': 'Period in minutes (default: 60)',
         'points': 'Number of data points (default: 20)'
     })
-    def get(self, metric_type, current_user):
+    def get(self, metric_type):
         """Get time series data for specific metrics"""
         try:
             # Parse query parameters
@@ -488,7 +488,7 @@ class CloudWatchAlarms(Resource):
     @token_required
     @metrics_ns.marshal_list_with(alarm_model)
     @metrics_ns.doc('get_cloudwatch_alarms', security='Bearer')
-    def get(self, current_user):
+    def get(self):
         """Get CloudWatch alarms status for proactive monitoring"""
         try:
             # Get all alarms related to our ECS service
@@ -555,7 +555,7 @@ class CostMetrics(Resource):
     @token_required
     @metrics_ns.marshal_with(cost_model)
     @metrics_ns.doc('get_cost_metrics', security='Bearer')
-    def get(self, current_user):
+    def get(self):
         """Get AWS cost metrics and optimization recommendations"""
         try:
             # Get cost data from AWS Cost Explorer
@@ -648,7 +648,7 @@ class SecurityMetrics(Resource):
     @token_required
     @metrics_ns.marshal_with(security_model)
     @metrics_ns.doc('get_security_metrics', security='Bearer')
-    def get(self, current_user):
+    def get(self):
         """Get security monitoring and compliance metrics"""
         try:
             # In production, this would integrate with AWS GuardDuty, Security Hub, etc.

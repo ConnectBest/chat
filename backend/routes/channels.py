@@ -7,7 +7,7 @@ from flask_restx import Namespace, Resource, fields
 from models.channel import Channel
 from models.message import Message
 from utils.validators import validate_channel_name
-from utils.auth import token_required
+from utils.auth import token_required, get_current_user
 
 channels_ns = Namespace('channels', description='Channel operations')
 
@@ -22,8 +22,9 @@ create_channel_model = channels_ns.model('CreateChannel', {
 class ChannelList(Resource):
     @channels_ns.doc(security='Bearer')
     @token_required
-    def get(self, current_user):
+    def get(self):
         """List user's channels"""
+        current_user = get_current_user()
         try:
             db = current_app.db
             channel_model = Channel(db)
@@ -217,8 +218,9 @@ class ChannelList(Resource):
     @channels_ns.expect(create_channel_model)
     @channels_ns.doc(security='Bearer')
     @token_required
-    def post(self, current_user):
+    def post(self):
         """Create a new channel"""
+        current_user = get_current_user()
         try:
             data = request.get_json()
 
@@ -264,8 +266,9 @@ class ChannelList(Resource):
 class ChannelDetail(Resource):
     @channels_ns.doc(security='Bearer')
     @token_required
-    def get(self, channel_id, current_user):
+    def get(self, channel_id):
         """Get channel details"""
+        current_user = get_current_user()
         try:
             db = current_app.db
             channel_model = Channel(db)
@@ -294,8 +297,9 @@ class ChannelDetail(Resource):
 class JoinChannel(Resource):
     @channels_ns.doc(security='Bearer')
     @token_required
-    def post(self, channel_id, current_user):
+    def post(self, channel_id):
         """Join a channel"""
+        current_user = get_current_user()
         try:
             db = current_app.db
             channel_model = Channel(db)
@@ -322,8 +326,9 @@ class JoinChannel(Resource):
 class ChannelMemberManagement(Resource):
     @channels_ns.doc(security='Bearer')
     @token_required
-    def post(self, channel_id, user_id, current_user):
+    def post(self, channel_id, user_id):
         """Add a member to a channel"""
+        current_user = get_current_user()
         try:
             db = current_app.db
             channel_model = Channel(db)
@@ -352,8 +357,9 @@ class ChannelMemberManagement(Resource):
 
     @channels_ns.doc(security='Bearer')
     @token_required
-    def delete(self, channel_id, user_id, current_user):
+    def delete(self, channel_id, user_id):
         """Remove a member from a channel"""
+        current_user = get_current_user()
         try:
             db = current_app.db
             channel_model = Channel(db)
@@ -381,8 +387,9 @@ class ChannelMemberManagement(Resource):
 class ChannelMembers(Resource):
     @channels_ns.doc(security='Bearer')
     @token_required
-    def post(self, channel_id, current_user):
+    def post(self, channel_id):
         """Add a member to a channel"""
+        current_user = get_current_user()
         try:
             data = request.get_json()
             user_id = data.get('user_id')
@@ -419,8 +426,9 @@ class ChannelMembers(Resource):
 class ChannelMemberDetail(Resource):
     @channels_ns.doc(security='Bearer')
     @token_required
-    def delete(self, channel_id, user_id, current_user):
+    def delete(self, channel_id, user_id):
         """Remove a member from a channel"""
+        current_user = get_current_user()
         try:
             db = current_app.db
             channel_model = Channel(db)
@@ -453,8 +461,9 @@ class ChannelMemberDetail(Resource):
 class ChannelTyping(Resource):
     @channels_ns.doc(security='Bearer')
     @token_required
-    def get(self, channel_id, current_user):
+    def get(self, channel_id):
         """Get list of users currently typing in channel"""
+        current_user = get_current_user()
         try:
             db = current_app.db
             from datetime import datetime, timedelta
@@ -486,8 +495,9 @@ class ChannelTyping(Resource):
 
     @channels_ns.doc(security='Bearer')
     @token_required
-    def post(self, channel_id, current_user):
+    def post(self, channel_id):
         """Update user's typing status in channel"""
+        current_user = get_current_user()
         try:
             data = request.get_json()
             is_typing = data.get('typing', False)
@@ -528,8 +538,9 @@ class ChannelTyping(Resource):
 class ChannelRead(Resource):
     @channels_ns.doc(security='Bearer')
     @token_required
-    def post(self, channel_id, current_user):
+    def post(self, channel_id):
         """Mark channel messages as read"""
+        current_user = get_current_user()
         try:
             db = current_app.db
             channel_model = Channel(db)
@@ -556,8 +567,9 @@ class ChannelRead(Resource):
 class AllChannels(Resource):
     @channels_ns.doc(security='Bearer')
     @token_required
-    def get(self, current_user):
+    def get(self):
         """Get all channels (admin only)"""
+        current_user = get_current_user()
         try:
             # Check if user is admin
             db = current_app.db

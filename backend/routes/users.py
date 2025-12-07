@@ -6,7 +6,7 @@ from flask import request, current_app
 from flask_restx import Namespace, Resource, fields
 from models.user import User
 from bson.objectid import ObjectId
-from utils.auth import token_required
+from utils.auth import token_required, get_current_user
 
 users_ns = Namespace('users', description='User operations')
 
@@ -22,8 +22,9 @@ class ProfileResourceBase(Resource):
 
     @users_ns.doc(security='Bearer')
     @token_required
-    def get(self, current_user):
+    def get(self):
         """Get user profile"""
+        current_user = get_current_user()
         try:
             db = current_app.db
             user_model = User(db)
@@ -39,8 +40,9 @@ class ProfileResourceBase(Resource):
     @users_ns.expect(update_profile_model)
     @users_ns.doc(security='Bearer')
     @token_required
-    def put(self, current_user):
+    def put(self):
         """Update user profile"""
+        current_user = get_current_user()
         try:
             data = request.get_json()
             db = current_app.db
@@ -81,8 +83,9 @@ class ProfileResourceBase(Resource):
 class UserAvatarUpdate(Resource):
     @users_ns.doc(security='Bearer')
     @token_required
-    def post(self, current_user):
+    def post(self):
         """Upload or update user profile picture"""
+        current_user = get_current_user()
         try:
             # Check if avatar URL is provided in JSON body
             data = request.get_json()
@@ -168,8 +171,9 @@ class UserMe(ProfileResourceBase):
 class UserSearch(Resource):
     @users_ns.doc(security='Bearer', params={'query': 'Search query', 'limit': 'Max results (default 20)'})
     @token_required
-    def get(self, current_user):
+    def get(self):
         """Search users by name or email"""
+        current_user = get_current_user()
         try:
             query = request.args.get('query', '')
             limit = int(request.args.get('limit', 20))
@@ -187,8 +191,9 @@ class UserSearch(Resource):
 class UserList(Resource):
     @users_ns.doc(security='Bearer')
     @token_required
-    def get(self, current_user):
+    def get(self):
         """Get all users for user directory"""
+        current_user = get_current_user()
         try:
             db = current_app.db
             user_model = User(db)
@@ -221,8 +226,9 @@ class UserList(Resource):
 class UserStatistics(Resource):
     @users_ns.doc(security='Bearer')
     @token_required
-    def get(self, current_user):
+    def get(self):
         """Get system statistics for admin dashboard"""
+        current_user = get_current_user()
         try:
             db = current_app.db
 

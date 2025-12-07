@@ -7,7 +7,7 @@ Handles 2FA setup, verification, and management.
 from flask import request, current_app
 from flask_restx import Namespace, Resource, fields
 from models.user import User
-from utils.auth import token_required
+from utils.auth import token_required, get_current_user
 from utils.two_factor import (
     generate_secret,
     generate_qr_code,
@@ -39,13 +39,14 @@ class Setup2FA(Resource):
     @two_factor_ns.doc(security='Bearer')
     @two_factor_ns.expect(setup_2fa_model)
     @token_required
-    def post(self, current_user):
+    def post(self):
         """
         Initialize 2FA setup - generates secret and QR code
 
         Step 1: User requests to enable 2FA
         Returns QR code and secret for authenticator app setup
         """
+        current_user = get_current_user()
         try:
             data = request.get_json()
             password = data.get('password', '')
@@ -98,13 +99,14 @@ class Verify2FASetup(Resource):
     @two_factor_ns.doc(security='Bearer')
     @two_factor_ns.expect(verify_2fa_model)
     @token_required
-    def post(self, current_user):
+    def post(self):
         """
         Complete 2FA setup by verifying the first code
 
         Step 2: User enters code from authenticator app to confirm setup
         Generates backup codes and enables 2FA
         """
+        current_user = get_current_user()
         try:
             data = request.get_json()
             code = data.get('code', '').strip()
@@ -165,8 +167,9 @@ class Disable2FA(Resource):
     @two_factor_ns.doc(security='Bearer')
     @two_factor_ns.expect(disable_2fa_model)
     @token_required
-    def post(self, current_user):
+    def post(self):
         """Disable 2FA (requires password and current 2FA code)"""
+        current_user = get_current_user()
         try:
             data = request.get_json()
             password = data.get('password', '')
@@ -211,8 +214,9 @@ class Disable2FA(Resource):
 class Get2FAStatus(Resource):
     @two_factor_ns.doc(security='Bearer')
     @token_required
-    def get(self, current_user):
+    def get(self):
         """Check if 2FA is enabled for current user"""
+        current_user = get_current_user()
         try:
             db = current_app.db
             user_model = User(db)
@@ -236,8 +240,9 @@ class RegenerateBackupCodes(Resource):
     @two_factor_ns.doc(security='Bearer')
     @two_factor_ns.expect(verify_2fa_model)
     @token_required
-    def post(self, current_user):
+    def post(self):
         """Regenerate backup codes (invalidates old ones)"""
+        current_user = get_current_user()
         try:
             data = request.get_json()
             code = data.get('code', '').strip()

@@ -248,13 +248,14 @@ def register_google_routes(namespace):
     class LinkGoogleAccount(Resource):
         @namespace.doc(security='Bearer')
         @token_required
-        def post(self, current_user):
+        def post(self):
             """
             Link Google account to existing user
 
             Requires authentication
             Body should contain Google ID token
             """
+            current_user = get_current_user()
             data = request.get_json()
             id_token = data.get('id_token')
 
