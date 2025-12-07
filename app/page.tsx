@@ -1,20 +1,21 @@
 'use client';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import styles from './page.module.css';
 import Link from 'next/link';
 
 export default function Home() {
   const router = useRouter();
+  const { status } = useSession();
 
   useEffect(() => {
-    // Check if user is logged in
-    const token = localStorage.getItem('token');
-    if (token) {
+    // Check if user is logged in via NextAuth session
+    if (status === 'authenticated') {
       // Redirect to chat if logged in
       router.push('/chat');
     }
-  }, [router]);
+  }, [router, status]);
 
   return (
     <div className={styles.particles}>
