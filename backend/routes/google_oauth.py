@@ -20,7 +20,7 @@ from flask_restx import Namespace, Resource
 import secrets
 from models.user import User
 from utils.google_oauth import create_google_oauth_instance
-from utils.auth import generate_token, token_required
+from utils.auth import generate_token, token_required, get_current_user
 
 
 def register_google_routes(namespace):
