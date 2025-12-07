@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { getApiUrl } from '@/lib/apiConfig';
 
 export default function ChatPage() {
   const router = useRouter();

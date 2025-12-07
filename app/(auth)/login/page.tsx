@@ -8,7 +8,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import Link from 'next/link';
-import { getApiUrl } from '@/lib/apiConfig';
 
 const schema = z.object({
   email: z.string().email('Please enter a valid email'),
