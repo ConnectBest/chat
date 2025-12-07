@@ -7,10 +7,10 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5001';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { messageId: string } }
+  { params }: { params: Promise<{ messageId: string }> }
 ) {
   try {
-    const { messageId } = params;
+    const { messageId } = await params;
     console.log('[Bookmark API] Toggling bookmark for message:', messageId);
 
     // Get current session to verify authentication

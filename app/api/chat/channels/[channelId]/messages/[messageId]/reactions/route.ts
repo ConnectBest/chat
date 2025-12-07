@@ -7,10 +7,10 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5001';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { channelId: string; messageId: string } }
+  { params }: { params: Promise<{ channelId: string; messageId: string }> }
 ) {
   try {
-    const { channelId, messageId } = params;
+    const { channelId, messageId } = await params;
     const body = await request.json().catch(() => ({}));
     console.log('[Reactions API] Adding reaction to message:', messageId);
 
@@ -64,10 +64,10 @@ export async function POST(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { channelId: string; messageId: string } }
+  { params }: { params: Promise<{ channelId: string; messageId: string }> }
 ) {
   try {
-    const { channelId, messageId } = params;
+    const { channelId, messageId } = await params;
     console.log('[Reactions API] Removing reaction from message:', messageId);
 
     // Get current session to verify authentication
