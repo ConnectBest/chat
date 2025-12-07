@@ -1,8 +1,9 @@
 "use client";
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 import { Avatar } from '@/components/ui/Avatar';
-import { getApiUrl } from '@/lib/apiConfig';
+import { useAuth } from '@/lib/useAuth';
 
 type UserStatus = 'available' | 'away' | 'busy' | 'inmeeting' | 'offline';
 
@@ -16,6 +17,7 @@ const statusConfig = {
 
 export function ProfileMenu() {
   const router = useRouter();
+  const { session, isAuthenticated } = useAuth(false);
   const [user, setUser] = useState<any>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
@@ -25,13 +27,10 @@ export function ProfileMenu() {
   // Fetch user data
   useEffect(() => {
     const fetchUser = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) return;
+      if (!isAuthenticated) return;
 
-        const response = await fetch(getApiUrl('auth/me'), {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+      try {
+        const response = await fetch('/api/auth/me');
 
         if (response.ok) {
           const data = await response.json();
@@ -42,7 +41,7 @@ export function ProfileMenu() {
       }
     };
     fetchUser();
-  }, []);
+  }, [isAuthenticated]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -75,11 +74,9 @@ export function ProfileMenu() {
     router.push(path);
   }
 
-  function handleSignOut() {
-    // Clear tokens
-    localStorage.removeItem('token');
-    document.cookie = 'auth-token=; path=/; max-age=0';
-    router.push('/login');
+  async function handleSignOut() {
+    // Use NextAuth signOut
+    await signOut({ callbackUrl: '/login' });
   }
 
   return (
@@ -184,12 +181,9 @@ export function ProfileMenu() {
                   formData.append('file', file);
                   
                   try {
-                    const token = localStorage.getItem('token');
-                    const response = await fetch(getApiUrl('users/me/avatar'), {
+                    // TODO: Create API route for avatar upload
+                    const response = await fetch('/api/users/me/avatar', {
                       method: 'POST',
-                      headers: {
-                        'Authorization': `Bearer ${token}`
-                      },
                       body: formData
                     });
                     
