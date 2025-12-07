@@ -8,6 +8,9 @@ import os
 import cloudinary
 import cloudinary.uploader
 from utils.auth import token_required
+import logging
+
+logger = logging.getLogger(__name__)
 
 upload_cloudinary_bp = Blueprint('upload_cloudinary', __name__)
 
@@ -72,7 +75,7 @@ def upload_avatar(current_user):
         }, 200
         
     except Exception as e:
-        print(f"Cloudinary Error: {str(e)}")
+        logger.error(f"Cloudinary Error: {str(e)}")
         return {'error': 'Failed to upload to Cloudinary'}, 500
 
 @upload_cloudinary_bp.route('/delete/<path:public_id>', methods=['DELETE'])
@@ -86,5 +89,5 @@ def delete_avatar(public_id, current_user):
         return {'success': True, 'message': 'Avatar deleted'}, 200
         
     except Exception as e:
-        print(f"Cloudinary Error: {str(e)}")
+        logger.error(f"Cloudinary Error: {str(e)}")
         return {'error': 'Failed to delete from Cloudinary'}, 500

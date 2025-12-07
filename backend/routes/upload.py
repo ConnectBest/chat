@@ -4,6 +4,9 @@ import os
 import uuid
 from datetime import datetime
 from utils.auth import token_required
+import logging
+
+logger = logging.getLogger(__name__)
 
 upload_bp = Blueprint('upload', __name__)
 
@@ -77,7 +80,7 @@ def upload_avatar(current_user):
         }, 200
         
     except Exception as e:
-        print(f"Error uploading avatar: {str(e)}")
+        logger.error(f"Error uploading avatar: {str(e)}")
         return {'error': 'Failed to upload avatar'}, 500
 
 @upload_bp.route('/delete/<filename>', methods=['DELETE'])
@@ -99,7 +102,7 @@ def delete_avatar(filename, current_user):
         return {'success': True, 'message': 'Avatar deleted'}, 200
         
     except Exception as e:
-        print(f"Error deleting avatar: {str(e)}")
+        logger.error(f"Error deleting avatar: {str(e)}")
         return {'error': 'Failed to delete avatar'}, 500
 
 @upload_bp.route('/message-file', methods=['POST'])
@@ -155,5 +158,5 @@ def upload_message_file(current_user):
         }, 200
         
     except Exception as e:
-        print(f"Error uploading message file: {str(e)}")
+        logger.error(f"Error uploading message file: {str(e)}")
         return {'error': 'Failed to upload file'}, 500
