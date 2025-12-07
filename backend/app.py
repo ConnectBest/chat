@@ -329,8 +329,10 @@ def create_app():
             leave_room(channel_id)
             logger.info(f'Client {request.sid} left channel {channel_id}')
 
-    # Google OAuth routes are registered within auth_ns
-    # Available at: /api/auth/google and /api/auth/google/callback
+    # NOTE: Google OAuth is now handled by NextAuth.js on the frontend
+    # The Flask backend routes/google_oauth.py is DEPRECATED and NOT registered
+    # NextAuth configuration is in: lib/auth.ts
+    # OAuth user creation/linking is automatic via NextAuth callbacks
 
     # Health check endpoint
     @app.route('/api/health', methods=['GET'])

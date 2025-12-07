@@ -56,8 +56,7 @@ export default function ChatPage() {
         });
 
         if (channelsRes.status === 401 || dmsRes.status === 401) {
-          console.log('🚫 [Chat] Got 401, token invalid - clearing and redirecting');
-          localStorage.removeItem('token');
+          console.log('🚫 [Chat] Got 401, session invalid - redirecting to login');
           router.push('/login');
           return;
         }

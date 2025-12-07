@@ -182,12 +182,7 @@ export function ChannelSidebar() {
     if (!newName.trim()) return;
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        router.push('/login');
-        return;
-      }
-
+      // Session is already validated by useAuth hook
       console.log('Creating channel with name:', newName.trim());
       const response = await fetch('/api/chat/channels', {
         method: 'POST',

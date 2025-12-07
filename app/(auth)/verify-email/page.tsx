@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 import { Button } from '@/components/ui/Button';
 import Link from 'next/link';
 
@@ -38,15 +39,10 @@ function VerifyEmailContent() {
         setMessage(data.message || 'Your email has been verified successfully!');
         setUserName(data.user?.name || data.user?.full_name || '');
 
-        // Store token for auto-login
-        if (data.token) {
-          localStorage.setItem('token', data.token);
-          localStorage.setItem('user', JSON.stringify(data.user));
-        }
-
-        // Redirect to chat after 3 seconds
+        // Email is now verified - user can login with NextAuth
+        // Redirect to login page after 3 seconds
         setTimeout(() => {
-          router.push('/chat');
+          router.push('/login?verified=true');
         }, 3000);
       } else {
         setStatus('error');
@@ -87,7 +83,7 @@ function VerifyEmailContent() {
                 <p className="text-xl text-white/90 mb-3">Welcome, {userName}! 🎉</p>
               )}
               <p className="text-white/70 mb-4">{message}</p>
-              <p className="text-sm text-brand-300">Redirecting to chat in 3 seconds...</p>
+              <p className="text-sm text-brand-300">Redirecting to login in 3 seconds...</p>
             </>
           )}
 

@@ -1,8 +1,22 @@
 """
-Google OAuth Routes
+Google OAuth Routes - DEPRECATED
 
-This module provides endpoints for Google OAuth 2.0 authentication.
-Allows users to sign in with their Google accounts.
+⚠️ DEPRECATED: This module is deprecated and no longer in use.
+⚠️ OAuth authentication is now handled by NextAuth.js on the frontend.
+⚠️ These routes are NOT registered in the Flask application.
+
+This module previously provided endpoints for Google OAuth 2.0 authentication.
+However, OAuth is now handled by NextAuth.js which provides a better, more
+secure integration with Next.js frontend.
+
+MIGRATION GUIDE:
+================
+- For Google OAuth: Use NextAuth.js Google provider (configured in lib/auth.ts)
+- For user authentication: NextAuth.js automatically creates sessions
+- For API calls: Next.js API routes validate NextAuth sessions and forward
+  requests to Flask with user headers (X-User-ID, X-User-Email, X-User-Role)
+
+This file is kept for reference only and may be removed in a future version.
 
 RETURN FORMAT STANDARDS:
 ========================
