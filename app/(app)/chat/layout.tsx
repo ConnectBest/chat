@@ -3,7 +3,6 @@ import React, { useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { ChannelSidebar } from '@/components/chat/ChannelSidebar';
 import { ProfileMenu } from '@/components/ui/ProfileMenu';
-import { getApiUrl } from '@/lib/apiConfig';
 
 export default function ChatLayout({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
@@ -12,15 +11,11 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
     // Set user status to online when chat loads
     const setOnlineStatus = async () => {
       try {
-        // Get token from NextAuth session
-        const token = (session?.user as any)?.accessToken;
-        if (!token) return;
-
-        await fetch(getApiUrl('users/me'), {
+        // Use Next.js API route which validates session internally
+        await fetch('/api/users/me', {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify({ status: 'online' })
         });
@@ -36,13 +31,11 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
       const heartbeatInterval = setInterval(setOnlineStatus, 30000);
 
       // Set user to offline when leaving
-      const handleBeforeUnload = async () => {
+      const handleBeforeUnload = () => {
         try {
-          const token = (session?.user as any)?.accessToken;
-          if (!token) return;
-
+          // Use sendBeacon for reliable delivery during page unload
           navigator.sendBeacon(
-            getApiUrl('users/me'),
+            '/api/users/me',
             new Blob([JSON.stringify({ status: 'offline' })], { type: 'application/json' })
           );
         } catch (error) {
