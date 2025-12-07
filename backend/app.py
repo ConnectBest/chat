@@ -238,6 +238,47 @@ def create_app():
         security='Bearer'
     )
     
+    # Flask-RESTX error handlers for API endpoints
+    # These ensure consistent JSON error responses across all API routes
+    @api.errorhandler(TypeError)
+    def handle_type_error(error):
+        """
+        Handle TypeError - commonly caused by non-JSON-serializable return values
+        
+        This catches cases where endpoints return Response objects, bytes, or other
+        non-serializable types that break Flask-RESTX JSON serialization.
+        """
+        logger.error(f"❌ SERIALIZATION ERROR: {str(error)}")
+        logger.error(f"Request: {request.method} {request.path}")
+        logger.error("This usually means an endpoint returned a non-JSON-serializable value.")
+        logger.error("Check that all endpoints return dict/list/str with status code tuple.")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        
+        return {
+            'error': 'Internal server error',
+            'message': 'Response serialization failed',
+            'details': 'An endpoint returned a non-JSON-serializable value'
+        }, 500
+    
+    @api.errorhandler(ValueError)
+    def handle_value_error(error):
+        """Handle ValueError in API endpoints"""
+        logger.warning(f"ValueError in API: {str(error)}")
+        return {
+            'error': 'Invalid value',
+            'message': str(error)
+        }, 400
+    
+    @api.errorhandler(KeyError)
+    def handle_key_error(error):
+        """Handle KeyError in API endpoints"""
+        logger.warning(f"KeyError in API: {str(error)}")
+        return {
+            'error': 'Missing required field',
+            'message': f'Required field {str(error)} is missing'
+        }, 400
+    
     # Register API namespaces (blueprints)
     from routes.auth import auth_ns
     from routes.users import users_ns
@@ -380,22 +421,75 @@ def create_app():
             'health': '/api/health'
         })
     # Global error handlers
+    # NOTE: These use jsonify() which is OK for @app.errorhandler (not Flask-RESTX endpoints)
+    # Flask error handlers expect Flask Response objects, not bare dicts
     @app.errorhandler(404)
     def not_found(error):
-        """Handle 404 errors"""
+        """
+        Handle 404 errors
+        
+        Note: Uses jsonify() because Flask error handlers expect Response objects.
+        This is different from Flask-RESTX Resource methods which must return dicts.
+        """
+        logger.warning(f"404 Not Found: {request.path}")
         return jsonify({
             'error': 'Resource not found',
-            'message': 'The requested URL was not found on the server'
+            'message': 'The requested URL was not found on the server',
+            'path': request.path
         }), 404
     
     @app.errorhandler(500)
     def internal_error(error):
-        """Handle 500 errors"""
+        """
+        Handle 500 errors
+        
+        Note: Uses jsonify() because Flask error handlers expect Response objects.
+        This is different from Flask-RESTX Resource methods which must return dicts.
+        """
         logger.error(f"Internal error: {str(error)}")
         return jsonify({
             'error': 'Internal server error',
             'message': 'An unexpected error occurred'
         }), 500
+    
+    @app.errorhandler(400)
+    def bad_request(error):
+        """
+        Handle 400 Bad Request errors
+        
+        Note: Uses jsonify() because Flask error handlers expect Response objects.
+        """
+        logger.warning(f"400 Bad Request: {str(error)}")
+        return jsonify({
+            'error': 'Bad request',
+            'message': str(error) if str(error) else 'The request was invalid'
+        }), 400
+    
+    @app.errorhandler(401)
+    def unauthorized(error):
+        """
+        Handle 401 Unauthorized errors
+        
+        Note: Uses jsonify() because Flask error handlers expect Response objects.
+        """
+        logger.warning(f"401 Unauthorized: {request.path}")
+        return jsonify({
+            'error': 'Unauthorized',
+            'message': 'Authentication required'
+        }), 401
+    
+    @app.errorhandler(403)
+    def forbidden(error):
+        """
+        Handle 403 Forbidden errors
+        
+        Note: Uses jsonify() because Flask error handlers expect Response objects.
+        """
+        logger.warning(f"403 Forbidden: {request.path}")
+        return jsonify({
+            'error': 'Forbidden',
+            'message': 'You do not have permission to access this resource'
+        }), 403
     
     return app
 

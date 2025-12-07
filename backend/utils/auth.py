@@ -7,12 +7,19 @@ LEARNING NOTE:
 - NextAuth session verification is handled at Next.js API route level
 - Flask receives validated user information via headers
 - Provides seamless integration between Next.js frontend and Flask backend
+
+CRITICAL SERIALIZATION NOTE:
+- All decorators MUST return JSON-serializable tuples: (dict, status_code)
+- NEVER use jsonify() in decorators - it creates Response objects incompatible with Flask-RESTX
+- Response objects break JSON serialization in production Fargate deployments
+- Always use: return {'error': 'message'}, 401
+- Never use: return jsonify({'error': 'message'}), 401
 """
 
 import jwt
 from datetime import datetime, timedelta, timezone
 from functools import wraps
-from flask import request, current_app, jsonify
+from flask import request, current_app
 from typing import Optional, Dict, Any
 
 
@@ -141,10 +148,11 @@ def token_required(f):
 
         if not auth_header:
             current_app.logger.warning('Missing user headers and Authorization header')
-            return jsonify({
+            # Return dict tuple - NEVER jsonify() in decorators (breaks Flask-RESTX serialization)
+            return {
                 'error': 'Unauthorized',
                 'message': 'Authentication required'
-            }), 401
+            }, 401
 
         # Parse token from header
         try:
@@ -152,29 +160,32 @@ def token_required(f):
 
             if len(token_parts) != 2 or token_parts[0].lower() != 'bearer':
                 current_app.logger.warning('Invalid authorization header format')
-                return jsonify({
+                # Return dict tuple - NEVER jsonify() (breaks serialization)
+                return {
                     'error': 'Unauthorized',
                     'message': 'Invalid authorization header format. Use: Bearer <token>'
-                }), 401
+                }, 401
 
             token = token_parts[1]
 
         except Exception as e:
             current_app.logger.warning(f'Error parsing authorization header: {str(e)}')
-            return jsonify({
+            # Return dict tuple - NEVER jsonify() (breaks serialization)
+            return {
                 'error': 'Unauthorized',
                 'message': 'Invalid authorization header'
-            }), 401
+            }, 401
 
         # Verify JWT token (fallback)
         user_payload = verify_nextauth_token(token)
 
         if not user_payload:
             current_app.logger.warning('Invalid or expired token')
-            return jsonify({
+            # Return dict tuple - NEVER jsonify() (breaks serialization)
+            return {
                 'error': 'Unauthorized',
                 'message': 'Invalid or expired token'
-            }), 401
+            }, 401
 
         # Add user info to request context
         request.current_user = user_payload
@@ -221,35 +232,39 @@ def admin_required(f):
             auth_header = request.headers.get('Authorization')
 
             if not auth_header:
-                return jsonify({
+                # Return dict tuple - NEVER jsonify() (breaks serialization)
+                return {
                     'error': 'Unauthorized',
                     'message': 'Authentication required'
-                }), 401
+                }, 401
 
             try:
                 token = auth_header.split()[1]
                 user_payload = verify_nextauth_token(token)
 
                 if not user_payload:
-                    return jsonify({
+                    # Return dict tuple - NEVER jsonify() (breaks serialization)
+                    return {
                         'error': 'Unauthorized',
                         'message': 'Invalid or expired token'
-                    }), 401
+                    }, 401
 
             except Exception as e:
                 current_app.logger.warning(f'Error in admin_required decorator: {str(e)}')
-                return jsonify({
+                # Return dict tuple - NEVER jsonify() (breaks serialization)
+                return {
                     'error': 'Unauthorized',
                     'message': 'Invalid authorization header'
-                }), 401
+                }, 401
 
         # Check if user has admin role
         if user_payload.get('role') != 'admin':
             current_app.logger.warning(f'Non-admin user {user_payload.get("email")} attempted admin access')
-            return jsonify({
+            # Return dict tuple - NEVER jsonify() (breaks serialization)
+            return {
                 'error': 'Forbidden',
                 'message': 'Admin access required'
-            }), 403
+            }, 403
 
         # Add user info to request
         request.current_user = user_payload
