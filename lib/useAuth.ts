@@ -14,10 +14,14 @@ export function useAuth(required = false) {
   const isAuthenticated = session.status === 'authenticated';
   
   useEffect(() => {
+    // Don't redirect while still loading authentication status
+    if (session.status === 'loading') return;
+    
     if (required && session.status === 'unauthenticated') {
       router.push('/login');
     }
-  }, [required, session.status, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [required, session.status]); // router is stable and doesn't need to be in deps
   
   return {
     session: session.data,
