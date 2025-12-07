@@ -38,10 +38,8 @@ export async function GET(
 
     if (!response.ok) {
       console.error('[Typing API] Fetch failed:', response.status);
-      return NextResponse.json(
-        { typing_users: [] },
-        { status: 200 }
-      );
+      // Return empty typing users on error (typing is non-critical)
+      return NextResponse.json({ typing_users: [] }, { status: 200 });
     }
 
     const data = await response.json();
@@ -49,10 +47,8 @@ export async function GET(
     return NextResponse.json(data);
   } catch (error) {
     console.error('[Typing API] Error fetching typing users:', error);
-    return NextResponse.json(
-      { typing_users: [] },
-      { status: 200 }
-    );
+    // Return empty typing users on error (typing is non-critical)
+    return NextResponse.json({ typing_users: [] }, { status: 200 });
   }
 }
 
