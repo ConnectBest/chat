@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { getApiUrl } from '@/lib/apiConfig';
 
 interface Message {
   id: string;
@@ -36,14 +35,7 @@ export function ThreadPanel({ message, onClose }: ThreadPanelProps) {
 
   async function fetchReplies() {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-
-      const response = await fetch(getApiUrl(`chat/messages/${message.id}/replies`), {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await fetch(`/api/chat/messages/${message.id}/replies`);
 
       if (response.ok) {
         const data = await response.json();
@@ -59,18 +51,10 @@ export function ThreadPanel({ message, onClose }: ThreadPanelProps) {
     setLoading(true);
     
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        alert('Please log in to reply');
-        setLoading(false);
-        return;
-      }
-
-      const response = await fetch(getApiUrl(`chat/messages/${message.id}/replies`), {
+      const response = await fetch(`/api/chat/messages/${message.id}/replies`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({ content: content.trim() })
       });
