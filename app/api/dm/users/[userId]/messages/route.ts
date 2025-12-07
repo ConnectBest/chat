@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { getUserHeaders } from '@/lib/apiUtils';
 import type { NextRequest } from 'next/server';
 
 // Use internal backend URL for server-side API route communication
@@ -13,10 +13,10 @@ export async function GET(
     const { userId } = await params;
     console.log('[DM Messages API] Fetching DM messages with user:', userId);
 
-    // Get current session to verify authentication
-    const session = await auth(request as any, {} as any);
+    // Get authenticated user headers with JWT token
+    const authData = await getUserHeaders(request);
 
-    if (!session?.user) {
+    if (!authData) {
       console.error('[DM Messages API] No authenticated session');
       return NextResponse.json(
         { error: 'Authentication required' },
@@ -24,16 +24,8 @@ export async function GET(
       );
     }
 
-    // Create headers with user info for Flask backend
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'X-User-ID': (session.user as any).id,
-      'X-User-Email': session.user.email || '',
-      'X-User-Role': (session.user as any).role || 'user'
-    };
-
     const response = await fetch(`${BACKEND_URL}/api/dm/users/${userId}/messages`, {
-      headers
+      headers: authData.headers
     });
 
     if (!response.ok) {
@@ -65,10 +57,10 @@ export async function POST(
     const body = await request.json().catch(() => ({}));
     console.log('[DM Messages API] Sending DM message to user:', userId);
 
-    // Get current session to verify authentication
-    const session = await auth(request as any, {} as any);
+    // Get authenticated user headers with JWT token
+    const authData = await getUserHeaders(request);
 
-    if (!session?.user) {
+    if (!authData) {
       console.error('[DM Messages API] No authenticated session');
       return NextResponse.json(
         { error: 'Authentication required' },
@@ -76,17 +68,9 @@ export async function POST(
       );
     }
 
-    // Create headers with user info for Flask backend
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'X-User-ID': (session.user as any).id,
-      'X-User-Email': session.user.email || '',
-      'X-User-Role': (session.user as any).role || 'user'
-    };
-
     const response = await fetch(`${BACKEND_URL}/api/dm/users/${userId}/messages`, {
       method: 'POST',
-      headers,
+      headers: authData.headers,
       body: JSON.stringify(body),
     });
 

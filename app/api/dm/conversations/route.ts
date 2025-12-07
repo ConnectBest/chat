@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { getUserHeaders } from '@/lib/apiUtils';
 
 // Use internal backend URL for server-side API route communication
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5001';
@@ -8,18 +8,10 @@ export async function GET(request: Request) {
   try {
     console.log('[DM Conversations API] Fetching conversations, backend URL:', BACKEND_URL);
 
-    // Get current session to verify authentication (NextAuth v5 API route style)
-    // In NextAuth v5 API routes, we need to create a proper auth context
-    const session = await auth(request as any, {} as any);
+    // Get authenticated user headers with JWT token
+    const authData = await getUserHeaders(request);
 
-    console.log('[DM Conversations API] Session check:', {
-      hasSession: !!session,
-      hasUser: !!session?.user,
-      userId: session?.user ? (session.user as any).id : null,
-      requestHeaders: Object.fromEntries(new Headers(request.headers).entries())
-    });
-
-    if (!session?.user) {
+    if (!authData) {
       console.error('[DM Conversations API] No authenticated session');
       return NextResponse.json(
         { error: 'Authentication required' },
@@ -27,16 +19,14 @@ export async function GET(request: Request) {
       );
     }
 
-    // Create headers with user info for Flask backend
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'X-User-ID': (session.user as any).id,
-      'X-User-Email': session.user.email || '',
-      'X-User-Role': (session.user as any).role || 'user'
-    };
+    console.log('[DM Conversations API] Session check:', {
+      hasSession: true,
+      userId: authData.userId,
+      hasAuthHeaders: !!authData.headers['Authorization']
+    });
 
     const response = await fetch(`${BACKEND_URL}/api/dm/conversations`, {
-      headers
+      headers: authData.headers
     });
 
     if (!response.ok) {
