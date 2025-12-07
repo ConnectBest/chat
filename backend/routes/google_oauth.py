@@ -3,6 +3,16 @@ Google OAuth Routes
 
 This module provides endpoints for Google OAuth 2.0 authentication.
 Allows users to sign in with their Google accounts.
+
+RETURN FORMAT STANDARDS:
+========================
+All endpoints MUST return JSON-serializable data (dict, list, etc.) with status codes.
+NEVER return Flask Response objects (like redirect()) directly - they are not JSON-serializable.
+For redirects, return a dict with 'redirect_url' field and let the frontend handle navigation.
+
+Examples:
+  CORRECT:   return {'redirect_url': url, 'token': token}, 200
+  INCORRECT: return redirect(url)  # Not JSON-serializable
 """
 
 from flask import request, redirect, current_app
@@ -209,18 +219,25 @@ def register_google_routes(namespace):
                     role=user['role']
                 )
                 
-                # Redirect to frontend with token
+                # Return JSON with redirect URL and token
+                # Frontend should handle the redirect with the token
                 frontend_url = current_app.config.get('FRONTEND_URL', 'http://localhost:8080')
                 redirect_url = f"{frontend_url}/callback?token={jwt_token}"
                 
-                return redirect(redirect_url)
-                
-                # Option 2: Return JSON (for testing)
-                # return {
-                #     'user': formatted_user,
-                #     'token': jwt_token,
-                #     'message': 'Google login successful'
-                # }, 200
+                # Return serializable JSON response with redirect information
+                # This allows Flask-RESTX to properly serialize the response
+                return {
+                    'success': True,
+                    'redirect_url': redirect_url,
+                    'token': jwt_token,
+                    'user': {
+                        'id': user['id'],
+                        'email': user['email'],
+                        'name': user.get('name') or user.get('full_name'),
+                        'role': user['role']
+                    },
+                    'message': 'Google login successful - redirect to the provided URL'
+                }, 200
                 
             except Exception as e:
                 current_app.logger.error(f"Google OAuth error: {str(e)}")

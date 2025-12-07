@@ -91,16 +91,16 @@ def delete_avatar(filename, current_user):
         
         # Check if file exists
         if not os.path.exists(filepath):
-            return ({'error': 'File not found'}), 404
+            return {'error': 'File not found'}, 404
         
         # Delete file
         os.remove(filepath)
         
-        return ({'success': True, 'message': 'Avatar deleted'}), 200
+        return {'success': True, 'message': 'Avatar deleted'}, 200
         
     except Exception as e:
         print(f"Error deleting avatar: {str(e)}")
-        return ({'error': 'Failed to delete avatar'}), 500
+        return {'error': 'Failed to delete avatar'}, 500
 
 @upload_bp.route('/message-file', methods=['POST'])
 @token_required
@@ -117,10 +117,10 @@ def upload_message_file(current_user):
             return {'error': 'No file selected'}, 400
         
         if not allowed_file(file.filename, MESSAGE_FILE_EXTENSIONS):
-            return ({
+            return {
                 'error': 'Invalid file type',
                 'allowed': list(MESSAGE_FILE_EXTENSIONS)
-            }), 400
+            }, 400
         
         # Check file size
         file.seek(0, os.SEEK_END)
@@ -128,9 +128,9 @@ def upload_message_file(current_user):
         file.seek(0)
         
         if file_size > MAX_MESSAGE_FILE_SIZE:
-            return ({
+            return {
                 'error': f'File too large. Maximum size is {MAX_MESSAGE_FILE_SIZE // (1024*1024)}MB'
-            }), 400
+            }, 400
         
         # Generate unique filename
         ext = file.filename.rsplit('.', 1)[1].lower()
@@ -145,15 +145,15 @@ def upload_message_file(current_user):
         backend_url = os.getenv('BACKEND_URL', 'http://localhost:5001')
         file_url = f"{backend_url}/static/uploads/messages/{unique_filename}"
         
-        return ({
+        return {
             'success': True,
             'file_url': file_url,
             'filename': unique_filename,
             'original_name': original_name,
             'size': file_size,
             'type': file.content_type
-        }), 200
+        }, 200
         
     except Exception as e:
         print(f"Error uploading message file: {str(e)}")
-        return ({'error': 'Failed to upload file'}), 500
+        return {'error': 'Failed to upload file'}, 500

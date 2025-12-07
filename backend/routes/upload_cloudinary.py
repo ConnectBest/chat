@@ -31,15 +31,15 @@ def upload_avatar(current_user):
     try:
         # Check if file was uploaded
         if 'file' not in request.files:
-            return ({'error': 'No file provided'}), 400
+            return {'error': 'No file provided'}, 400
         
         file = request.files['file']
         
         if file.filename == '':
-            return ({'error': 'No file selected'}), 400
+            return {'error': 'No file selected'}, 400
         
         if not allowed_file(file.filename):
-            return ({'error': 'Invalid file type. Allowed: png, jpg, jpeg, gif, webp'}), 400
+            return {'error': 'Invalid file type. Allowed: png, jpg, jpeg, gif, webp'}, 400
         
         # Check file size
         file.seek(0, os.SEEK_END)
@@ -47,7 +47,7 @@ def upload_avatar(current_user):
         file.seek(0)
         
         if file_size > MAX_FILE_SIZE:
-            return ({'error': 'File too large. Maximum size is 5MB'}), 400
+            return {'error': 'File too large. Maximum size is 5MB'}, 400
         
         # Upload to Cloudinary with automatic optimization
         upload_result = cloudinary.uploader.upload(
@@ -65,15 +65,15 @@ def upload_avatar(current_user):
         avatar_url = upload_result['secure_url']
         public_id = upload_result['public_id']
         
-        return ({
+        return {
             'success': True,
             'avatar_url': avatar_url,
             'public_id': public_id
-        }), 200
+        }, 200
         
     except Exception as e:
         print(f"Cloudinary Error: {str(e)}")
-        return ({'error': 'Failed to upload to Cloudinary'}), 500
+        return {'error': 'Failed to upload to Cloudinary'}, 500
 
 @upload_cloudinary_bp.route('/delete/<path:public_id>', methods=['DELETE'])
 @token_required
@@ -83,8 +83,8 @@ def delete_avatar(public_id, current_user):
         # Delete from Cloudinary
         cloudinary.uploader.destroy(public_id)
         
-        return ({'success': True, 'message': 'Avatar deleted'}), 200
+        return {'success': True, 'message': 'Avatar deleted'}, 200
         
     except Exception as e:
         print(f"Cloudinary Error: {str(e)}")
-        return ({'error': 'Failed to delete from Cloudinary'}), 500
+        return {'error': 'Failed to delete from Cloudinary'}, 500
