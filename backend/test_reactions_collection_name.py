@@ -5,7 +5,6 @@ This test ensures that all parts of the codebase are using the same
 collection name for message reactions.
 """
 
-import re
 import os
 
 

@@ -15,6 +15,7 @@ Usage:
 
 import os
 import sys
+import traceback
 from pymongo import MongoClient, ASCENDING
 from dotenv import load_dotenv
 from bson.objectid import ObjectId
@@ -164,7 +165,6 @@ def migrate_reactions_collection():
         
     except Exception as e:
         print(f"\n❌ Error during migration: {e}")
-        import traceback
         traceback.print_exc()
         return 1
     finally:
