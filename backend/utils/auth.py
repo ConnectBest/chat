@@ -10,7 +10,7 @@ LEARNING NOTE:
 """
 
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from flask import request, current_app, jsonify
 from typing import Optional, Dict, Any
@@ -303,8 +303,8 @@ def generate_token(user_id: str, email: str, role: str) -> str:
             'sub': user_id,  # Standard JWT claim
             'email': email,
             'role': role,
-            'iat': datetime.utcnow(),
-            'exp': datetime.utcnow() + timedelta(days=7)  # Token expires in 7 days
+            'iat': datetime.now(timezone.utc),
+            'exp': datetime.now(timezone.utc) + timedelta(days=7)  # Token expires in 7 days
         }
         
         # Generate JWT token
