@@ -9,7 +9,7 @@ import uuid
 import boto3
 from botocore.exceptions import ClientError
 from werkzeug.utils import secure_filename
-from utils.auth import token_required
+from utils.auth import token_required, get_current_user
 import logging
 
 logger = logging.getLogger(__name__)
@@ -63,8 +63,9 @@ def get_content_type(filename):
 
 @upload_s3_bp.route('/avatar', methods=['POST'])
 @token_required
-def upload_avatar(current_user):
+def upload_avatar():
     """Upload avatar image to S3 and return URL"""
+    current_user = get_current_user()
     try:
         # Check if file was uploaded
         if 'file' not in request.files:
@@ -120,8 +121,9 @@ def upload_avatar(current_user):
 
 @upload_s3_bp.route('/message-file', methods=['POST'])
 @token_required
-def upload_message_file(current_user):
+def upload_message_file():
     """Upload file attachment for messages (images, documents, videos, etc.) to S3"""
+    current_user = get_current_user()
     try:
         # Check if file was uploaded
         if 'file' not in request.files:
@@ -187,8 +189,9 @@ def upload_message_file(current_user):
 
 @upload_s3_bp.route('/delete/<path:filename>', methods=['DELETE'])
 @token_required
-def delete_avatar(filename, current_user):
+def delete_avatar(filename):
     """Delete uploaded avatar from S3"""
+    current_user = get_current_user()
     try:
         # Delete from S3
         s3_client.delete_object(

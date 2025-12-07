@@ -3,7 +3,7 @@ from werkzeug.utils import secure_filename
 import os
 import uuid
 from datetime import datetime
-from utils.auth import token_required
+from utils.auth import token_required, get_current_user
 import logging
 
 logger = logging.getLogger(__name__)
@@ -38,8 +38,9 @@ def allowed_file(filename, allowed_extensions):
 
 @upload_bp.route('/avatar', methods=['POST'])
 @token_required
-def upload_avatar(current_user):
+def upload_avatar():
     """Upload avatar image and return URL"""
+    current_user = get_current_user()
     try:
         # Check if file was uploaded
         if 'file' not in request.files:
@@ -85,8 +86,9 @@ def upload_avatar(current_user):
 
 @upload_bp.route('/delete/<filename>', methods=['DELETE'])
 @token_required
-def delete_avatar(filename, current_user):
+def delete_avatar(filename):
     """Delete uploaded avatar"""
+    current_user = get_current_user()
     try:
         # Validate filename
         filename = secure_filename(filename)
@@ -107,8 +109,9 @@ def delete_avatar(filename, current_user):
 
 @upload_bp.route('/message-file', methods=['POST'])
 @token_required
-def upload_message_file(current_user):
+def upload_message_file():
     """Upload file attachment for messages (images, documents, videos, etc.)"""
+    current_user = get_current_user()
     try:
         # Check if file was uploaded
         if 'file' not in request.files:

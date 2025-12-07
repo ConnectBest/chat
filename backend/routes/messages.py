@@ -7,7 +7,7 @@ from flask_restx import Namespace, Resource, fields
 from models.message import Message
 from models.channel import Channel
 from utils.validators import validate_message_content
-from utils.auth import token_required
+from utils.auth import token_required, get_current_user
 
 messages_ns = Namespace('messages', description='Messaging operations')
 
@@ -33,8 +33,9 @@ add_reaction_model = messages_ns.model('AddReaction', {
 class MessageList(Resource):
     @messages_ns.doc(security='Bearer', params={'limit': 'Max messages (default 50)', 'before': 'Message ID for pagination'})
     @token_required
-    def get(self, channel_id, current_user):
+    def get(self, channel_id):
         """Get messages in a channel"""
+        current_user = get_current_user()
         try:
             db = current_app.db
             channel_model = Channel(db)
@@ -59,8 +60,9 @@ class SendMessage(Resource):
     @messages_ns.expect(send_message_model)
     @messages_ns.doc(security='Bearer')
     @token_required
-    def post(self, channel_id, current_user):
+    def post(self, channel_id):
         """Send a message in a channel"""
+        current_user = get_current_user()
         try:
             db = current_app.db
             channel_model = Channel(db)
@@ -96,8 +98,9 @@ class SendMessage(Resource):
 class MessageDetail(Resource):
     @messages_ns.doc(security='Bearer')
     @token_required
-    def get(self, message_id, current_user):
+    def get(self, message_id):
         """Get a specific message"""
+        current_user = get_current_user()
         try:
             db = current_app.db
             message_model = Message(db)
@@ -113,8 +116,9 @@ class MessageDetail(Resource):
     @messages_ns.expect(send_message_model)
     @messages_ns.doc(security='Bearer')
     @token_required
-    def put(self, message_id, current_user):
+    def put(self, message_id):
         """Edit a message"""
+        current_user = get_current_user()
         try:
             data = request.get_json()
             content = data.get('content', '')
@@ -136,8 +140,9 @@ class MessageDetail(Resource):
 
     @messages_ns.doc(security='Bearer')
     @token_required
-    def delete(self, message_id, current_user):
+    def delete(self, message_id):
         """Delete a message"""
+        current_user = get_current_user()
         try:
             db = current_app.db
             message_model = Message(db)
@@ -155,8 +160,9 @@ class MessageDetail(Resource):
 class MessageBookmark(Resource):
     @messages_ns.doc(security='Bearer')
     @token_required
-    def post(self, message_id, current_user):
+    def post(self, message_id):
         """Toggle bookmark/star on a message"""
+        current_user = get_current_user()
         try:
             db = current_app.db
             message_model = Message(db)
@@ -175,8 +181,9 @@ class MessageBookmark(Resource):
 class ThreadReplies(Resource):
     @messages_ns.doc(security='Bearer')
     @token_required
-    def get(self, message_id, current_user):
+    def get(self, message_id):
         """Get all replies to a message (thread)"""
+        current_user = get_current_user()
         try:
             db = current_app.db
             message_model = Message(db)
@@ -190,8 +197,9 @@ class ThreadReplies(Resource):
     @messages_ns.expect(send_message_model)
     @messages_ns.doc(security='Bearer')
     @token_required
-    def post(self, message_id, current_user):
+    def post(self, message_id):
         """Post a reply to a message (thread)"""
+        current_user = get_current_user()
         try:
             data = request.get_json()
             content = data.get('content', '')
@@ -232,8 +240,9 @@ class MessageReactions(Resource):
     @messages_ns.expect(add_reaction_model)
     @messages_ns.doc(security='Bearer')
     @token_required
-    def post(self, channel_id, message_id, current_user):
+    def post(self, channel_id, message_id):
         """Add reaction to a message"""
+        current_user = get_current_user()
         try:
             db = current_app.db
             channel_model = Channel(db)
@@ -302,8 +311,9 @@ class MessageReactions(Resource):
 
     @messages_ns.doc(security='Bearer')
     @token_required
-    def delete(self, channel_id, message_id, current_user):
+    def delete(self, channel_id, message_id):
         """Remove reaction from a message"""
+        current_user = get_current_user()
         try:
             db = current_app.db
             channel_model = Channel(db)

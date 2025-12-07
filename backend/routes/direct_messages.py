@@ -8,7 +8,7 @@ from models.message import Message
 from models.channel import Channel
 from bson.objectid import ObjectId
 from datetime import datetime
-from utils.auth import token_required
+from utils.auth import token_required, get_current_user
 
 dm_ns = Namespace('dm', description='Direct messaging operations')
 
@@ -29,8 +29,9 @@ send_dm_model = dm_ns.model('SendDM', {
 class DMMessageList(Resource):
     @dm_ns.doc(security='Bearer')
     @token_required
-    def get(self, recipient_id, current_user):
+    def get(self, recipient_id):
         """Get direct messages with a specific user"""
+        current_user = get_current_user()
         try:
             db = current_app.db
             sender_id = current_user['user_id']
@@ -54,8 +55,9 @@ class DMMessageList(Resource):
     @dm_ns.expect(send_dm_model)
     @dm_ns.doc(security='Bearer')
     @token_required
-    def post(self, recipient_id, current_user):
+    def post(self, recipient_id):
         """Send a direct message to a specific user"""
+        current_user = get_current_user()
         try:
             data = request.get_json()
             content = data.get('content', '').strip()
@@ -133,8 +135,9 @@ class DMMessageList(Resource):
 class DMConversationList(Resource):
     @dm_ns.doc(security='Bearer')
     @token_required
-    def get(self, current_user):
+    def get(self):
         """Get all DM conversations for the current user"""
+        current_user = get_current_user()
         try:
             db = current_app.db
             user_id = current_user['user_id']
@@ -391,8 +394,9 @@ class DMConversationList(Resource):
 class DMRead(Resource):
     @dm_ns.doc(security='Bearer')
     @token_required
-    def post(self, dm_channel_id, current_user):
+    def post(self, dm_channel_id):
         """Mark DM messages as read"""
+        current_user = get_current_user()
         try:
             db = current_app.db
             channel_model = Channel(db)

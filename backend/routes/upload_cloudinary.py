@@ -7,7 +7,7 @@ from flask import Blueprint, request
 import os
 import cloudinary
 import cloudinary.uploader
-from utils.auth import token_required
+from utils.auth import token_required, get_current_user
 import logging
 
 logger = logging.getLogger(__name__)
@@ -29,8 +29,9 @@ def allowed_file(filename):
 
 @upload_cloudinary_bp.route('/avatar', methods=['POST'])
 @token_required
-def upload_avatar(current_user):
+def upload_avatar():
     """Upload avatar image to Cloudinary and return URL"""
+    current_user = get_current_user()
     try:
         # Check if file was uploaded
         if 'file' not in request.files:
@@ -80,8 +81,9 @@ def upload_avatar(current_user):
 
 @upload_cloudinary_bp.route('/delete/<path:public_id>', methods=['DELETE'])
 @token_required
-def delete_avatar(public_id, current_user):
+def delete_avatar(public_id):
     """Delete uploaded avatar from Cloudinary"""
+    current_user = get_current_user()
     try:
         # Delete from Cloudinary
         cloudinary.uploader.destroy(public_id)
