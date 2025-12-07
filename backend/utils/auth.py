@@ -298,11 +298,11 @@ def generate_token(user_id: str, email: str, role: str) -> str:
         
         # Create token payload
         now = datetime.now(timezone.utc)
-        expiration_delta = current_app.config.get('JWT_EXPIRATION_DELTA', timedelta(days=7))
+        expiration_delta = current_app.config['JWT_EXPIRATION_DELTA']
         payload = {
-            'user_id': user_id,
-            'id': user_id,  # Include both for compatibility
-            'sub': user_id,  # Standard JWT claim
+            'user_id': user_id,  # Legacy field for compatibility with existing frontend code
+            'id': user_id,       # Alternative legacy field
+            'sub': user_id,      # Standard JWT claim (preferred)
             'email': email,
             'role': role,
             'iat': int(now.timestamp()),  # Issued at (Unix timestamp)
@@ -316,7 +316,7 @@ def generate_token(user_id: str, email: str, role: str) -> str:
             algorithm='HS256'
         )
         
-        current_app.logger.debug(f'✅ Generated JWT token for user ID: {user_id}')
+        current_app.logger.debug('JWT token generated successfully')
         return token
         
     except Exception as e:

@@ -15,7 +15,7 @@ Examples:
   INCORRECT: return redirect(url)  # Not JSON-serializable
 """
 
-from flask import request, redirect, current_app
+from flask import request, current_app
 from flask_restx import Namespace, Resource
 import secrets
 from models.user import User
