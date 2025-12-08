@@ -247,7 +247,7 @@ export class ChatAppStack extends cdk.Stack {
         NEXT_PUBLIC_WEBSOCKET_URL: 'wss://v68x792yd5.execute-api.us-west-2.amazonaws.com/prod',
 
         // Internal container-to-container communication
-        BACKEND_URL: 'http://localhost:5001', // Frontend calls backend internally
+        BACKEND_URL: 'http://127.0.0.1:5001', // Frontend calls backend via shared network interface
 
         // MongoDB configuration for NextAuth direct connection
         MONGODB_URI: mongoUri,
