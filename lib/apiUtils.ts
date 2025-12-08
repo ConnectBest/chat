@@ -14,35 +14,66 @@ import type { NextRequest } from 'next/server';
  * @returns Object containing session and headers with JWT token, or null if not authenticated
  */
 export async function getUserHeaders(request: NextRequest) {
-  const session = await auth(request as any, {} as any);
+  console.log('[API Utils] 🔍 getUserHeaders called for:', request.nextUrl?.pathname);
 
-  if (!session?.user) {
-    console.error('[API Utils] No authenticated session found');
+  try {
+    const session = await auth(request as any, {} as any);
+    console.log('[API Utils] Session result:', {
+      hasSession: !!session,
+      hasUser: !!session?.user,
+      userEmail: session?.user?.email,
+      sessionKeys: session ? Object.keys(session) : []
+    });
+
+    if (!session?.user) {
+      console.error('[API Utils] ❌ No authenticated session found');
+      return null;
+    }
+
+    // Extract Flask-compatible JWT token from session
+    const accessToken = (session.user as any).accessToken;
+    const flaskAccessToken = (session.user as any).flaskAccessToken;
+
+    console.log('[API Utils] Token analysis:', {
+      hasAccessToken: !!accessToken,
+      hasFlaskAccessToken: !!flaskAccessToken,
+      accessTokenLength: accessToken?.length || 0,
+      flaskTokenLength: flaskAccessToken?.length || 0,
+      userKeys: Object.keys(session.user || {})
+    });
+
+    // Try both token fields
+    const jwtToken = flaskAccessToken || accessToken;
+
+    if (!jwtToken) {
+      console.error('[API Utils] ❌ No JWT token found in session for user:', session.user.email);
+      console.error('[API Utils] Session.user object:', JSON.stringify(session.user, null, 2));
+      return null;
+    }
+
+    // Create headers with JWT Bearer token for Flask backend
+    // Flask's @token_required decorator expects: Authorization: Bearer <jwt_token>
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${jwtToken}`,
+      // Keep user headers as fallback for backend compatibility
+      'X-User-ID': (session.user as any).id,
+      'X-User-Email': session.user.email || '',
+      'X-User-Role': (session.user as any).role || 'user'
+    };
+
+    console.log('[API Utils] ✅ Generated authenticated headers:', {
+      userEmail: session.user.email,
+      hasAuthHeader: !!headers['Authorization'],
+      authHeaderStart: headers['Authorization']?.substring(0, 20) + '...',
+      headerKeys: Object.keys(headers)
+    });
+
+    return { session, headers };
+  } catch (error) {
+    console.error('[API Utils] ❌ Error in getUserHeaders:', error);
     return null;
   }
-
-  // Extract Flask-compatible JWT token from session
-  const accessToken = (session.user as any).accessToken;
-
-  if (!accessToken) {
-    console.error('[API Utils] No access token found in session for user:', session.user.email);
-    return null;
-  }
-
-  // Create headers with JWT Bearer token for Flask backend
-  // Flask's @token_required decorator expects: Authorization: Bearer <jwt_token>
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${accessToken}`,
-    // Keep user headers as fallback for backend compatibility
-    'X-User-ID': (session.user as any).id,
-    'X-User-Email': session.user.email || '',
-    'X-User-Role': (session.user as any).role || 'user'
-  };
-
-  console.log('[API Utils] Generated authenticated headers for user:', session.user.email);
-
-  return { session, headers };
 }
 
 /**
