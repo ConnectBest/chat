@@ -29,6 +29,7 @@ export function ChannelSidebar() {
   const [userDirOpen, setUserDirOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [channelsLoading, setChannelsLoading] = useState(true); // Track channel loading state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [clickedUser, setClickedUser] = useState<{id: string; name: string; email: string; phone?: string; status: 'online' | 'away' | 'busy' | 'inmeeting' | 'offline'; statusMessage?: string} | null>(null);
   const [popoverPosition, setPopoverPosition] = useState({ x: 0, y: 0 });
@@ -40,15 +41,21 @@ export function ChannelSidebar() {
 
     const fetchChannels = async () => {
       try {
-        // OPTIMIZATION: Check cache first to avoid duplicate API calls
+        setChannelsLoading(true);
+
+        // OPTIMIZATION: Check cache first but validate names exist
         const channelsCache = sessionStorage.getItem('chat_channels_cache');
         if (channelsCache) {
           try {
             const cacheData = JSON.parse(channelsCache);
-            // Use cached data if less than 30 seconds old
+            // Use cached data if less than 30 seconds old AND all channels have names
             if (Date.now() - cacheData.timestamp < 30000) {
-              setChannels(cacheData.channels || []);
-              return;
+              const validChannels = (cacheData.channels || []).filter((c: any) => c.name && c.name.trim());
+              if (validChannels.length > 0) {
+                setChannels(validChannels);
+                setChannelsLoading(false);
+                return;
+              }
             }
           } catch (e) {
             // Cache read failed, continue to fetch
@@ -60,16 +67,21 @@ export function ChannelSidebar() {
         if (response.ok) {
           const data = await response.json();
           const channels = data.channels || [];
-          setChannels(channels);
 
-          // Update cache with fresh data
-          try {
-            sessionStorage.setItem('chat_channels_cache', JSON.stringify({
-              channels,
-              timestamp: Date.now()
-            }));
-          } catch (e) {
-            // Cache save failed, not critical
+          // Only set channels that have valid names
+          const validChannels = channels.filter((c: any) => c.name && c.name.trim());
+          setChannels(validChannels);
+
+          // Update cache with valid channels only
+          if (validChannels.length > 0) {
+            try {
+              sessionStorage.setItem('chat_channels_cache', JSON.stringify({
+                channels: validChannels,
+                timestamp: Date.now()
+              }));
+            } catch (e) {
+              // Cache save failed, not critical
+            }
           }
         } else {
           const errorData = await response.json().catch(() => ({}));
@@ -79,6 +91,8 @@ export function ChannelSidebar() {
       } catch (error) {
         console.error('❌ [ChannelSidebar] Error fetching channels:', error);
         setChannels([]);
+      } finally {
+        setChannelsLoading(false);
       }
     };
 
@@ -290,23 +304,35 @@ export function ChannelSidebar() {
           <Button variant="ghost" aria-label="Create channel" onClick={() => setOpen(true)}>＋</Button>
         </div>
         <nav className="space-y-1 px-2 overflow-y-auto max-h-[200px] scrollbar-thin">
-          {channels.map(c => (
-            <Link
-              key={c.id}
-              href={`/chat/${c.id}`}
-              className={`flex items-center justify-between rounded px-3 py-2 text-sm truncate ${pathname === `/chat/${c.id}` ? 'bg-white/15' : 'hover:bg-white/10'}`}
-            >
-              <span className={(c as any).unreadCount > 0 ? 'font-bold' : ''}>
-                # {c.name || 'Loading...'}
-              </span>
-              {(c as any).unreadCount > 0 && (
-                <span className="bg-gray-500/50 text-white text-xs font-semibold rounded-full px-2 py-0.5 min-w-[20px] text-center">
-                  {(c as any).unreadCount}
-                </span>
-              )}
-            </Link>
-          ))}
-          {!channels.length && <div className="text-white/40 text-xs px-3">No channels</div>}
+          {channelsLoading ? (
+            <div className="px-3 py-2 text-white/40 text-xs">
+              <div className="animate-pulse space-y-2">
+                <div className="h-4 bg-white/10 rounded"></div>
+                <div className="h-4 bg-white/10 rounded w-4/5"></div>
+                <div className="h-4 bg-white/10 rounded w-3/5"></div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {channels.map(c => (
+                <Link
+                  key={c.id}
+                  href={`/chat/${c.id}`}
+                  className={`flex items-center justify-between rounded px-3 py-2 text-sm truncate ${pathname === `/chat/${c.id}` ? 'bg-white/15' : 'hover:bg-white/10'}`}
+                >
+                  <span className={(c as any).unreadCount > 0 ? 'font-bold' : ''}>
+                    # {c.name}
+                  </span>
+                  {(c as any).unreadCount > 0 && (
+                    <span className="bg-gray-500/50 text-white text-xs font-semibold rounded-full px-2 py-0.5 min-w-[20px] text-center">
+                      {(c as any).unreadCount}
+                    </span>
+                  )}
+                </Link>
+              ))}
+              {!channels.length && <div className="text-white/40 text-xs px-3">No channels</div>}
+            </>
+          )}
         </nav>
 
         {/* Direct Messages Section */}
