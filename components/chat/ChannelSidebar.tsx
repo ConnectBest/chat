@@ -296,7 +296,9 @@ export function ChannelSidebar() {
               href={`/chat/${c.id}`}
               className={`flex items-center justify-between rounded px-3 py-2 text-sm truncate ${pathname === `/chat/${c.id}` ? 'bg-white/15' : 'hover:bg-white/10'}`}
             >
-              <span className={(c as any).unreadCount > 0 ? 'font-bold' : ''}># {c.name}</span>
+              <span className={(c as any).unreadCount > 0 ? 'font-bold' : ''}>
+                # {c.name || 'Loading...'}
+              </span>
               {(c as any).unreadCount > 0 && (
                 <span className="bg-gray-500/50 text-white text-xs font-semibold rounded-full px-2 py-0.5 min-w-[20px] text-center">
                   {(c as any).unreadCount}

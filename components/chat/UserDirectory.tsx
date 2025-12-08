@@ -36,18 +36,25 @@ export function UserDirectory({ open, onClose, onSelectUser, currentUserId }: Us
   async function loadUsers() {
     setLoading(true);
     try {
-      // TODO: Create API route for fetching users
-      // const response = await fetch('/api/users');
-      // if (response.ok) {
-      //   const data = await response.json();
-      //   // Filter out current user if needed
-      //   const allUsers = data.users || [];
-      //   setUsers(allUsers.filter((u: User) => u.id !== currentUserId));
-      // } else {
-      //   setUsers([]);
-      // }
-      console.warn('Users API route not yet implemented');
-      setUsers([]);
+      const response = await fetch('/api/users');
+      if (response.ok) {
+        const data = await response.json();
+        // Filter out current user from the list
+        const allUsers = data.users || [];
+        const filteredUsers = allUsers
+          .filter((u: any) => u.id !== currentUserId)
+          .map((u: any) => ({
+            id: u.id,
+            name: u.name || 'Unknown',
+            email: u.email || '',
+            status: u.status || 'offline' as const,
+            avatar: u.avatar_url || u.avatar
+          }));
+        setUsers(filteredUsers);
+      } else {
+        console.error('Failed to fetch users:', response.status, response.statusText);
+        setUsers([]);
+      }
     } catch (error) {
       console.error('Failed to load users:', error);
       setUsers([]);
