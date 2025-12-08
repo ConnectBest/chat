@@ -53,10 +53,10 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const body = await request.json().catch(() => ({}));
     console.log('[Users/Me API] Updating current user, backend URL:', BACKEND_URL);
 
-    // Get authenticated user headers with JWT token
+    // CRITICAL FIX: Get auth data BEFORE reading request body
+    // Reading the body first consumes it and prevents NextAuth from working
     const authData = await getUserHeaders(request);
 
     if (!authData) {
@@ -66,6 +66,9 @@ export async function PUT(request: NextRequest) {
         { status: 401 }
       );
     }
+
+    // Now it's safe to read the request body
+    const body = await request.json().catch(() => ({}));
 
     const response = await fetch(`${BACKEND_URL}/api/users/me`, {
       method: 'PUT',

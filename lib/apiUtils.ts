@@ -17,12 +17,17 @@ export async function getUserHeaders(request: NextRequest) {
   console.log('[API Utils] 🔍 getUserHeaders called for:', request.nextUrl?.pathname);
 
   try {
-    const session = await auth(request as any, {} as any);
+    // CRITICAL FIX: Clone the request to avoid "body already consumed" errors
+    // This prevents NextAuth auth() from interfering with request body reading
+    const clonedRequest = request.clone();
+
+    const session = await auth(clonedRequest as any, {} as any);
     console.log('[API Utils] Session result:', {
       hasSession: !!session,
       hasUser: !!session?.user,
       userEmail: session?.user?.email,
-      sessionKeys: session ? Object.keys(session) : []
+      sessionKeys: session ? Object.keys(session) : [],
+      userKeys: session?.user ? Object.keys(session.user) : []
     });
 
     if (!session?.user) {
