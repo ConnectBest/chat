@@ -499,7 +499,7 @@ export class ChatAppStack extends cdk.Stack {
     });
 
     // Priority 100: Route ALL other /api/* to frontend (Next.js API routes for authentication)
-    httpsListener.addAction('NextJSApiRoute', {
+    httpsListener.addAction('ApiRoute', {
       priority: 100,
       conditions: [
         elbv2.ListenerCondition.pathPatterns(['/api/*'])
