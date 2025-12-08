@@ -17,11 +17,9 @@ export async function getUserHeaders(request: NextRequest) {
   console.log('[API Utils] 🔍 getUserHeaders called for:', request.nextUrl?.pathname);
 
   try {
-    // CRITICAL FIX: Clone the request to avoid "body already consumed" errors
-    // This prevents NextAuth auth() from interfering with request body reading
-    const clonedRequest = request.clone();
-
-    const session = await auth(clonedRequest as any, {} as any);
+    // CRITICAL FIX: Use proper NextAuth v5 auth() function signature
+    // NextAuth v5 requires a proper request/response pair, not arbitrary objects
+    const session = await auth();
     console.log('[API Utils] Session result:', {
       hasSession: !!session,
       hasUser: !!session?.user,
