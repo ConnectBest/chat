@@ -274,7 +274,7 @@ graph TB
 
     subgraph "Flask Backend"
         JWT_VERIFY[JWT Token Verification]
-        DECORATORS[@token_required Decorator]
+        DECORATORS[token_required Decorator]
         PERMISSIONS[Role-based Permissions]
     end
 

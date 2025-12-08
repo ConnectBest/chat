@@ -132,8 +132,8 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
     // Fetch immediately
     fetchTypingUsers();
     
-    // Poll every 5 seconds (reduced from 2 for better performance)
-    const interval = setInterval(fetchTypingUsers, 5000);
+    // Poll every 10 seconds (reduced for CPU optimization)
+    const interval = setInterval(fetchTypingUsers, 10000);
     
     return () => {
       clearInterval(interval);

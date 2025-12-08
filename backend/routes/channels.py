@@ -23,194 +23,65 @@ class ChannelList(Resource):
     @channels_ns.doc(security='Bearer')
     @token_required
     def get(self):
-        """List user's channels"""
+        """List user's channels - optimized for performance"""
         current_user = get_current_user()
         try:
             db = current_app.db
-            channel_model = Channel(db)
 
-            # Optimized: Use aggregation to get channels with last messages in single query
-            try:
-                from bson.objectid import ObjectId
-                pipeline = [
-                    # Stage 1: Get user's channel memberships
-                    {
-                        '$match': {
-                            'user_id': ObjectId(current_user['user_id'])
-                        }
-                    },
-                    # Stage 2: Join with channels
-                    {
-                        '$lookup': {
-                            'from': 'channels',
-                            'localField': 'channel_id',
-                            'foreignField': '_id',
-                            'as': 'channel'
-                        }
-                    },
-                    {
-                        '$unwind': '$channel'
-                    },
-                    # Stage 3: Filter out DM channels and deleted channels
-                    {
-                        '$match': {
-                            'channel.is_deleted': False,
-                            'channel.name': {'$not': {'$regex': '^dm_'}}
-                        }
-                    },
-                    # Stage 4: Get last message for each channel
-                    {
-                        '$lookup': {
-                            'from': 'messages',
-                            'let': {'channel_id': '$channel_id'},
-                            'pipeline': [
-                                {
-                                    '$match': {
-                                        '$expr': {'$eq': ['$channel_id', '$$channel_id']},
-                                        'is_deleted': False
-                                    }
-                                },
-                                {'$sort': {'created_at': -1}},
-                                {'$limit': 1},
-                                {
-                                    '$project': {
-                                        'content': 1,
-                                        'created_at': 1
-                                    }
-                                }
-                            ],
-                            'as': 'last_msg'
-                        }
-                    },
-                    # Stage 5: Get read status for unread count
-                    {
-                        '$lookup': {
-                            'from': 'user_channel_reads',
-                            'let': {
-                                'channel_id': '$channel_id',
-                                'user_id': ObjectId(current_user['user_id'])
-                            },
-                            'pipeline': [
-                                {
-                                    '$match': {
-                                        '$expr': {
-                                            '$and': [
-                                                {'$eq': ['$channel_id', '$$channel_id']},
-                                                {'$eq': ['$user_id', '$$user_id']}
-                                            ]
-                                        }
-                                    }
-                                },
-                                {
-                                    '$project': {
-                                        'last_read_at': 1
-                                    }
-                                }
-                            ],
-                            'as': 'read_status'
-                        }
-                    },
-                    # Stage 6: Count unread messages
-                    {
-                        '$lookup': {
-                            'from': 'messages',
-                            'let': {
-                                'channel_id': '$channel_id',
-                                'last_read_at': {
-                                    '$ifNull': [
-                                        {'$arrayElemAt': ['$read_status.last_read_at', 0]},
-                                        None
-                                    ]
-                                }
-                            },
-                            'pipeline': [
-                                {
-                                    '$match': {
-                                        '$expr': {
-                                            '$and': [
-                                                {'$eq': ['$channel_id', '$$channel_id']},
-                                                {'$eq': ['$is_deleted', False]},
-                                                {
-                                                    '$cond': {
-                                                        'if': {'$ne': ['$$last_read_at', None]},
-                                                        'then': {'$gt': ['$created_at', '$$last_read_at']},
-                                                        'else': True
-                                                    }
-                                                }
-                                            ]
-                                        }
-                                    }
-                                },
-                                {'$count': 'count'}
-                            ],
-                            'as': 'unread'
-                        }
-                    },
-                    # Stage 7: Format output
-                    {
-                        '$project': {
-                            '_id': 0,
-                            'id': {'$toString': '$channel._id'},
-                            'name': '$channel.name',
-                            'description': '$channel.description',
-                            'type': '$channel.type',
-                            'created_by': {'$toString': '$channel.created_by'},
-                            'created_at': {
-                                '$dateToString': {
-                                    'format': '%Y-%m-%dT%H:%M:%S.%LZ',
-                                    'date': '$channel.created_at'
-                                }
-                            },
-                            'member_role': '$role',
-                            'last_message': {
-                                '$cond': {
-                                    'if': {'$gt': [{'$size': '$last_msg'}, 0]},
-                                    'then': {'$arrayElemAt': ['$last_msg.content', 0]},
-                                    'else': None
-                                }
-                            },
-                            'last_message_at': {
-                                '$cond': {
-                                    'if': {'$gt': [{'$size': '$last_msg'}, 0]},
-                                    'then': {
-                                        '$dateToString': {
-                                            'format': '%Y-%m-%dT%H:%M:%S.%LZ',
-                                            'date': {'$arrayElemAt': ['$last_msg.created_at', 0]}
-                                        }
-                                    },
-                                    'else': {
-                                        '$dateToString': {
-                                            'format': '%Y-%m-%dT%H:%M:%S.%LZ',
-                                            'date': '$channel.created_at'
-                                        }
-                                    }
-                                }
-                            },
-                            'unreadCount': {
-                                '$ifNull': [
-                                    {'$arrayElemAt': ['$unread.count', 0]},
-                                    0
-                                ]
-                            }
-                        }
-                    },
-                    # Stage 8: Sort by most recent activity
-                    {
-                        '$sort': {'last_message_at': -1}
-                    }
-                ]
-                
-                channels = list(db['channel_members'].aggregate(pipeline))
-                return {'channels': channels}, 200
-                
-            except Exception as e:
-                current_app.logger.error(f"Error in channels aggregation: {str(e)}")
-                import traceback
-                current_app.logger.error(traceback.format_exc())
-                return {'error': 'Failed to list channels'}, 500
-            
+            # OPTIMIZATION: Simple approach - get user's channels first, then supplement with minimal data
+            from bson.objectid import ObjectId
+            user_id = ObjectId(current_user['user_id'])
+
+            # Step 1: Get user's channel memberships (fast query with index)
+            channel_memberships = list(db['channel_members'].find(
+                {'user_id': user_id},
+                {'channel_id': 1, 'role': 1}
+            ))
+
+            if not channel_memberships:
+                return {'channels': []}, 200
+
+            channel_ids = [m['channel_id'] for m in channel_memberships]
+
+            # Step 2: Get channel details (fast query with _id index)
+            channels = list(db['channels'].find(
+                {
+                    '_id': {'$in': channel_ids},
+                    'is_deleted': False,
+                    'name': {'$not': {'$regex': '^dm_'}}
+                },
+                {
+                    'name': 1,
+                    'description': 1,
+                    'type': 1,
+                    'created_by': 1,
+                    'created_at': 1
+                }
+            ))
+
+            # Step 3: Build response with minimal processing
+            result_channels = []
+            for channel in channels:
+                result_channels.append({
+                    'id': str(channel['_id']),
+                    'name': channel.get('name', ''),
+                    'description': channel.get('description', ''),
+                    'type': channel.get('type', 'public'),
+                    'created_by': str(channel.get('created_by', '')),
+                    'created_at': channel.get('created_at', '').isoformat() if hasattr(channel.get('created_at', ''), 'isoformat') else str(channel.get('created_at', '')),
+                    'member_role': next((m['role'] for m in channel_memberships if m['channel_id'] == channel['_id']), 'member'),
+                    'last_message': None,  # Skip expensive message lookups for performance
+                    'last_message_at': channel.get('created_at', '').isoformat() if hasattr(channel.get('created_at', ''), 'isoformat') else str(channel.get('created_at', '')),
+                    'unreadCount': 0  # Skip expensive unread count for performance
+                })
+
+            # Sort by name for consistent ordering
+            result_channels.sort(key=lambda x: x['name'].lower())
+
+            return {'channels': result_channels}, 200
+
         except Exception as e:
-            current_app.logger.error(f"Error: {str(e)}")
+            current_app.logger.error(f"Error listing channels: {str(e)}")
             import traceback
             current_app.logger.error(traceback.format_exc())
             return {'error': 'Failed to list channels'}, 500

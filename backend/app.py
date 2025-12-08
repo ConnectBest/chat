@@ -86,17 +86,17 @@ def create_app():
 
         # Build connection options based on URI - optimized for production containers with DNS issues
         connection_options = {
-            'serverSelectionTimeoutMS': 15000,  # Longer timeout for DNS resolution issues
-            'connectTimeoutMS': 15000,  # Connection timeout
-            'socketTimeoutMS': 15000,  # Socket timeout
-            'maxPoolSize': 3,  # Very small pool size for container environments
-            'minPoolSize': 1,  # Keep at least one connection
-            'maxIdleTimeMS': 30000,  # Keep connections longer to avoid reconnection issues
+            'serverSelectionTimeoutMS': 5000,  # Reduced timeout for faster failures
+            'connectTimeoutMS': 5000,  # Faster connection timeout
+            'socketTimeoutMS': 10000,  # Reduced socket timeout
+            'maxPoolSize': 5,  # Increased pool size for 2 workers
+            'minPoolSize': 2,  # Keep minimum connections warm
+            'maxIdleTimeMS': 60000,  # Keep connections longer to avoid reconnection overhead
             'retryWrites': True,  # Enable retry writes
             'w': 'majority',  # Write concern
-            'heartbeatFrequencyMS': 60000,  # Less frequent heartbeats
+            'heartbeatFrequencyMS': 30000,  # More frequent heartbeats for faster detection
             'directConnection': False,  # Allow connection to replica sets
-            'waitQueueTimeoutMS': 10000,  # Longer timeout for getting a connection from the pool
+            'waitQueueTimeoutMS': 3000,  # Shorter queue timeout to fail fast
             'maxConnecting': 2,  # Limit concurrent connection attempts
             'compressors': [],  # Disable compression to reduce overhead
         }
