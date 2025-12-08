@@ -36,7 +36,7 @@ EXPECTED_SCHEMA = {
         'required': ['_id', 'channel_id', 'user_id', 'role', 'joined_at'],
         'optional': ['last_read_at']
     },
-    'message_reactions': {
+    'reactions': {
         'required': ['_id', 'message_id', 'user_id', 'emoji', 'created_at'],
         'optional': []
     }
@@ -62,7 +62,7 @@ PRODUCTION_SCHEMA = {
     'channel_members': [
         '_id', 'channel_id', 'user_id', 'role', 'joined_at', 'last_read_at'
     ],
-    'message_reactions': [
+    'reactions': [
         '_id', 'message_id', 'user_id', 'emoji', 'created_at'
     ]
 }

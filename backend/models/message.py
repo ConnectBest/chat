@@ -21,7 +21,7 @@ class Message:
     """
     Message Model representing chat messages.
     
-    Collections in MongoDB: 'messages', 'message_reactions'
+    Collections in MongoDB: 'messages', 'reactions'
     
     Message Fields:
         - _id: MongoDB ObjectId (unique identifier)
@@ -45,7 +45,7 @@ class Message:
     
     # MongoDB collection names
     COLLECTION = 'messages'
-    REACTIONS_COLLECTION = 'message_reactions'
+    REACTIONS_COLLECTION = 'reactions'
     
     def __init__(self, db):
         """

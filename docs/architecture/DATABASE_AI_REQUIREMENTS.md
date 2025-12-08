@@ -118,7 +118,7 @@ CREATE INDEX idx_messages_content_fts ON messages USING gin(to_tsvector('english
 
 ### 1.5 Message Reactions Table
 ```sql
-CREATE TABLE message_reactions (
+CREATE TABLE reactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -127,8 +127,8 @@ CREATE TABLE message_reactions (
     UNIQUE(message_id, user_id) -- User can have only one reaction per message
 );
 
-CREATE INDEX idx_reactions_message ON message_reactions(message_id);
-CREATE INDEX idx_reactions_user ON message_reactions(user_id);
+CREATE INDEX idx_reactions_message ON reactions(message_id);
+CREATE INDEX idx_reactions_user ON reactions(user_id);
 ```
 
 ---

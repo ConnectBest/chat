@@ -26,7 +26,7 @@ This is a **full-stack real-time chat application** using a monorepo structure w
 - `users` - User accounts with bcrypt passwords, roles (admin/user), 2FA secrets, OAuth data
 - `channels` - Chat channels (public/private) with member tracking
 - `messages` - Messages with thread support (`parent_message_id`), soft deletes, edit tracking
-- `message_reactions` - Emoji reactions on messages
+- `reactions` - Emoji reactions on messages
 - `message_files` - File attachments metadata (S3/Cloudinary URLs)
 - `message_embeddings` - Vector embeddings for semantic search
 - `user_channel_read` - Read receipts per user per channel
