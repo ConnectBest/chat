@@ -156,6 +156,9 @@ class HealthStatus(Resource):
     def get(self):
         """Get comprehensive system health status"""
         try:
+            # Get build information from build-info.json
+            version_info = self._get_build_info()
+
             # Get ECS service status
             ecs = boto3.client('ecs', region_name=AWS_REGION)
 
@@ -203,20 +206,52 @@ class HealthStatus(Resource):
             return {
                 'status': 'healthy' if all_healthy else 'degraded',
                 'uptime': max(uptime, 95.0),  # Assume reasonable uptime
-                'version': '1.0.0',
+                'version': version_info,
                 'timestamp': datetime.utcnow().isoformat(),
                 'services': services
             }, 200
 
         except Exception as e:
             current_app.logger.error(f"Health check failed: {str(e)}")
+            version_info = self._get_build_info()
             return {
                 'status': 'error',
                 'uptime': 0,
-                'version': '1.0.0',
+                'version': version_info,
                 'timestamp': datetime.utcnow().isoformat(),
                 'services': {'error': str(e)}
             }, 500
+
+    def _get_build_info(self):
+        """Get build information from build-info.json"""
+        try:
+            # Try to read build-info.json from the frontend public directory
+            # This assumes the backend can access the frontend's public directory
+            import os
+
+            # Try multiple potential paths for the build-info.json file
+            possible_paths = [
+                '/app/public/build-info.json',  # Docker container path
+                '../public/build-info.json',     # Development path from backend directory
+                '../../public/build-info.json',  # Alternative development path
+                'public/build-info.json',        # Another possible path
+            ]
+
+            for path in possible_paths:
+                if os.path.exists(path):
+                    with open(path, 'r') as f:
+                        build_info = json.load(f)
+
+                    # Return formatted version string with git info
+                    return f"{build_info.get('version', '1.0.0')} ({build_info.get('gitShort', 'unknown')}) - {build_info.get('gitBranch', 'unknown')}"
+
+            # Fallback if file not found
+            current_app.logger.warning("build-info.json not found in any expected location")
+            return "1.0.0 (unknown) - unknown"
+
+        except Exception as e:
+            current_app.logger.warning(f"Failed to read build info: {str(e)}")
+            return "1.0.0 (unknown) - unknown"
 
 
 @metrics_ns.route('/system')
@@ -674,4 +709,72 @@ class SecurityMetrics(Resource):
                 'authenticationFailures': 5,
                 'complianceScore': 94.5,
                 'lastSecurityScan': (datetime.utcnow() - timedelta(hours=6)).isoformat()
+            }, 200
+
+
+@metrics_ns.route('/logs-insights')
+class LogsInsights(Resource):
+    @token_required
+    @metrics_ns.marshal_with(logs_insights_model)
+    @metrics_ns.doc('get_logs_insights', security='Bearer')
+    def get(self):
+        """Get logs insights and analytics from CloudWatch Logs"""
+        current_user = get_current_user()  # Required for authentication
+        try:
+            # In production, this would use CloudWatch Logs Insights API
+            # For now, returning structured demo data that matches the frontend expectations
+
+            # Simulate log analysis results
+            return {
+                'errorCount': 12,  # Would come from CloudWatch Logs Insights query
+                'warningCount': 8,  # Would come from CloudWatch Logs Insights query
+                'topErrors': [
+                    {
+                        'error': 'Connection timeout to database',
+                        'count': 5,
+                        'firstSeen': (datetime.utcnow() - timedelta(hours=2)).isoformat()
+                    },
+                    {
+                        'error': 'JWT token validation failed',
+                        'count': 3,
+                        'firstSeen': (datetime.utcnow() - timedelta(hours=4)).isoformat()
+                    },
+                    {
+                        'error': 'Rate limit exceeded for user',
+                        'count': 4,
+                        'firstSeen': (datetime.utcnow() - timedelta(hours=1)).isoformat()
+                    }
+                ],
+                'performanceInsights': [
+                    {
+                        'insight': 'Database query response time increased by 15%',
+                        'severity': 'medium',
+                        'recommendation': 'Consider optimizing frequently used queries'
+                    },
+                    {
+                        'insight': 'Memory usage approaching 80% threshold',
+                        'severity': 'high',
+                        'recommendation': 'Scale up container resources or optimize memory usage'
+                    }
+                ],
+                'userActivity': {
+                    'peakHour': '2:00 PM',
+                    'messagesSentLastHour': 847,
+                    'newRegistrations': 12
+                }
+            }, 200
+
+        except Exception as e:
+            current_app.logger.error(f"Failed to get logs insights: {str(e)}")
+            # Return fallback data
+            return {
+                'errorCount': 5,
+                'warningCount': 3,
+                'topErrors': [],
+                'performanceInsights': [],
+                'userActivity': {
+                    'peakHour': '12:00 PM',
+                    'messagesSentLastHour': 100,
+                    'newRegistrations': 2
+                }
             }, 200

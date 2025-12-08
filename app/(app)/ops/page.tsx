@@ -4,6 +4,14 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
+interface WebSocketHealth {
+  status: 'connected' | 'disconnected' | 'reconnecting' | 'error';
+  lastConnected: string;
+  reconnectAttempts: number;
+  protocol: 'socket.io' | 'websocket' | 'unknown';
+  latency: number;
+}
+
 interface HealthStatus {
   status: 'healthy' | 'degraded' | 'down';
   uptime: number;
@@ -64,6 +72,7 @@ export default function OpsPage() {
   const router = useRouter();
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [wsHealth, setWsHealth] = useState<WebSocketHealth | null>(null);
   const [latencyData, setLatencyData] = useState<any[]>([]);
   const [connectionData, setConnectionData] = useState<any[]>([]);
   const [errorData, setErrorData] = useState<any[]>([]);
@@ -239,6 +248,13 @@ export default function OpsPage() {
         console.error('Failed to fetch logs insights:', error);
       }
 
+      // WebSocket Health Check
+      try {
+        await checkWebSocketHealth();
+      } catch (error) {
+        console.error('Failed to check WebSocket health:', error);
+      }
+
     } catch (error) {
       console.error('Failed to fetch ops dashboard data:', error);
 
@@ -257,6 +273,89 @@ export default function OpsPage() {
         errorRate: 1.0,
         cpuUsage: 30,
         memoryUsage: 50
+      });
+    }
+  }
+
+  async function checkWebSocketHealth() {
+    const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL;
+
+    if (!wsUrl) {
+      setWsHealth({
+        status: 'error',
+        lastConnected: 'Never',
+        reconnectAttempts: 0,
+        protocol: 'unknown',
+        latency: 0
+      });
+      return;
+    }
+
+    try {
+      const startTime = Date.now();
+
+      // Test WebSocket connection
+      const testSocket = new WebSocket(wsUrl);
+
+      const healthCheck = new Promise<WebSocketHealth>((resolve) => {
+        const timeout = setTimeout(() => {
+          testSocket.close();
+          resolve({
+            status: 'error',
+            lastConnected: 'Connection timeout',
+            reconnectAttempts: 0,
+            protocol: 'websocket',
+            latency: Date.now() - startTime
+          });
+        }, 5000);
+
+        testSocket.onopen = () => {
+          clearTimeout(timeout);
+          const latency = Date.now() - startTime;
+          testSocket.close();
+          resolve({
+            status: 'connected',
+            lastConnected: new Date().toISOString(),
+            reconnectAttempts: 0,
+            protocol: 'websocket',
+            latency
+          });
+        };
+
+        testSocket.onerror = () => {
+          clearTimeout(timeout);
+          testSocket.close();
+          resolve({
+            status: 'error',
+            lastConnected: 'Connection failed',
+            reconnectAttempts: 1,
+            protocol: 'websocket',
+            latency: Date.now() - startTime
+          });
+        };
+
+        testSocket.onclose = (event) => {
+          clearTimeout(timeout);
+          const status = event.code === 1000 ? 'disconnected' : 'error';
+          resolve({
+            status,
+            lastConnected: status === 'disconnected' ? new Date().toISOString() : 'Connection closed unexpectedly',
+            reconnectAttempts: status === 'error' ? 1 : 0,
+            protocol: 'websocket',
+            latency: Date.now() - startTime
+          });
+        };
+      });
+
+      const result = await healthCheck;
+      setWsHealth(result);
+    } catch (error) {
+      setWsHealth({
+        status: 'error',
+        lastConnected: 'Health check failed',
+        reconnectAttempts: 0,
+        protocol: 'unknown',
+        latency: 0
       });
     }
   }
@@ -304,6 +403,12 @@ export default function OpsPage() {
             <p className="text-white/60 text-sm md:text-base">Real-time system monitoring and observability</p>
           </div>
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => router.push('/chat')}
+              className="px-3 md:px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition text-sm md:text-base flex items-center gap-2"
+            >
+              💬 Back to Chat
+            </button>
             <label className="flex items-center gap-2 text-white/80">
               <input
                 type="checkbox"
@@ -350,6 +455,103 @@ export default function OpsPage() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* WebSocket Health Status */}
+        {wsHealth && (
+          <div className="bg-white/10 backdrop-blur-lg rounded-xl border border-white/20 p-6 mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className={`w-4 h-4 rounded-full ${
+                  wsHealth.status === 'connected' ? 'bg-green-500' :
+                  wsHealth.status === 'disconnected' ? 'bg-yellow-500' :
+                  wsHealth.status === 'reconnecting' ? 'bg-blue-500 animate-pulse' : 'bg-red-500'
+                } animate-pulse`} />
+                <div>
+                  <h2 className={`text-xl font-bold ${
+                    wsHealth.status === 'connected' ? 'text-green-400' :
+                    wsHealth.status === 'disconnected' ? 'text-yellow-400' :
+                    wsHealth.status === 'reconnecting' ? 'text-blue-400' : 'text-red-400'
+                  }`}>
+                    WebSocket {wsHealth.status.toUpperCase()}
+                  </h2>
+                  <p className="text-white/60 text-sm">Real-time Communication</p>
+                </div>
+              </div>
+              <div className="flex gap-6">
+                <div>
+                  <div className="text-white/60 text-sm">Protocol</div>
+                  <div className="text-white text-lg font-semibold">{wsHealth.protocol}</div>
+                </div>
+                <div>
+                  <div className="text-white/60 text-sm">Latency</div>
+                  <div className="text-white text-lg font-semibold">{wsHealth.latency}ms</div>
+                </div>
+                <div>
+                  <div className="text-white/60 text-sm">Last Connected</div>
+                  <div className="text-white text-sm">
+                    {wsHealth.lastConnected === 'Never' || wsHealth.lastConnected.includes('failed') || wsHealth.lastConnected.includes('timeout')
+                      ? wsHealth.lastConnected
+                      : new Date(wsHealth.lastConnected).toLocaleTimeString()}
+                  </div>
+                </div>
+                {wsHealth.reconnectAttempts > 0 && (
+                  <div>
+                    <div className="text-white/60 text-sm">Reconnect Attempts</div>
+                    <div className="text-red-400 text-lg font-semibold">{wsHealth.reconnectAttempts}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* WebSocket Issues Alert */}
+            {wsHealth.status !== 'connected' && (
+              <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                <div className="text-red-400 font-medium text-sm mb-2">⚠️ WebSocket Connection Issues Detected</div>
+                <div className="text-white/80 text-xs">
+                  {wsHealth.status === 'error' && wsHealth.lastConnected.includes('timeout') && (
+                    <>
+                      <strong>Timeout:</strong> WebSocket connection timed out. The server may be down or unreachable.
+                      <br />📋 <strong>Troubleshooting:</strong> Check if <code>NEXT_PUBLIC_WEBSOCKET_URL</code> is correctly configured and the WebSocket server is running.
+                    </>
+                  )}
+                  {wsHealth.status === 'error' && wsHealth.lastConnected.includes('failed') && (
+                    <>
+                      <strong>Connection Failed:</strong> Unable to establish WebSocket connection.
+                      <br />📋 <strong>Troubleshooting:</strong> Verify the WebSocket URL and ensure there's no firewall blocking the connection.
+                    </>
+                  )}
+                  {wsHealth.status === 'disconnected' && (
+                    <>
+                      <strong>Disconnected:</strong> WebSocket connection was established but closed unexpectedly.
+                      <br />📋 <strong>Troubleshooting:</strong> This might be due to protocol mismatch (Socket.IO vs native WebSocket).
+                    </>
+                  )}
+                  {wsHealth.protocol === 'unknown' && (
+                    <>
+                      <br /><strong>Missing Configuration:</strong> <code>NEXT_PUBLIC_WEBSOCKET_URL</code> environment variable not set.
+                    </>
+                  )}
+                </div>
+                <button
+                  onClick={checkWebSocketHealth}
+                  className="mt-2 px-3 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded text-xs font-medium transition"
+                >
+                  🔄 Test WebSocket Again
+                </button>
+              </div>
+            )}
+
+            {/* WebSocket Success Info */}
+            {wsHealth.status === 'connected' && (
+              <div className="mt-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                <div className="text-green-400 font-medium text-sm mb-2">✅ WebSocket Connection Healthy</div>
+                <div className="text-white/80 text-xs">
+                  Real-time messaging is working properly. Connection latency: {wsHealth.latency}ms
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -656,10 +858,32 @@ export default function OpsPage() {
                   <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
                     <div className="text-red-400 font-medium text-sm">Errors (24h)</div>
                     <div className="text-2xl font-bold text-white">{logsInsights.errorCount}</div>
+                    <button
+                      onClick={() => {
+                        const logGroupName = process.env.NEXT_PUBLIC_LOG_GROUP_NAME || '/aws/ecs/chat-app';
+                        const region = process.env.NEXT_PUBLIC_AWS_REGION || 'us-west-2';
+                        const consoleUrl = `https://${region}.console.aws.amazon.com/cloudwatch/home?region=${region}#logsV2:logs-insights$3FqueryDetail$3D$2528end$253A$2521$2528$2527now$2527$2529$257Estart$253A$2521$2528$2527now-24h$2527$2529$257EtimeType$253A$2521$2527ABSOLUTE$2527$257Etz$253A$2521$2527UTC$2527$257Esource$253A$2521$2528$2527${encodeURIComponent(logGroupName)}$2527$2529$257Equery$253A$2521$2527fields$252520$252540timestamp$25252C$252520$252540message$25250A$25257C$252520filter$252520$252540message$252520like$252520$252F$252528ERROR$25257CERROR$25257Cfailed$25257Cexception$25257Cerror$2529$252Fi$25250A$25257C$252520sort$252520$252540timestamp$252520desc$2527$2529`;
+                        window.open(consoleUrl, '_blank');
+                      }}
+                      className="mt-2 text-xs text-red-300 hover:text-red-200 underline cursor-pointer"
+                    >
+                      🔗 View in AWS Console
+                    </button>
                   </div>
                   <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
                     <div className="text-yellow-400 font-medium text-sm">Warnings (24h)</div>
                     <div className="text-2xl font-bold text-white">{logsInsights.warningCount}</div>
+                    <button
+                      onClick={() => {
+                        const logGroupName = process.env.NEXT_PUBLIC_LOG_GROUP_NAME || '/aws/ecs/chat-app';
+                        const region = process.env.NEXT_PUBLIC_AWS_REGION || 'us-west-2';
+                        const consoleUrl = `https://${region}.console.aws.amazon.com/cloudwatch/home?region=${region}#logsV2:logs-insights$3FqueryDetail$3D$2528end$253A$2521$2528$2527now$2527$2529$257Estart$253A$2521$2528$2527now-24h$2527$2529$257EtimeType$253A$2521$2527ABSOLUTE$2527$257Etz$253A$2521$2527UTC$2527$257Esource$253A$2521$2528$2527${encodeURIComponent(logGroupName)}$2527$2529$257Equery$253A$2521$2527fields$252520$252540timestamp$25252C$252520$252540message$25250A$25257C$252520filter$252520$252540message$252520like$252520$252F$252528WARN$25257CWarning$25257Cwarning$2529$252Fi$25250A$25257C$252520sort$252520$252540timestamp$252520desc$2527$2529`;
+                        window.open(consoleUrl, '_blank');
+                      }}
+                      className="mt-2 text-xs text-yellow-300 hover:text-yellow-200 underline cursor-pointer"
+                    >
+                      🔗 View in AWS Console
+                    </button>
                   </div>
                 </div>
 
@@ -683,28 +907,6 @@ export default function OpsPage() {
 
               {/* User Activity & Performance */}
               <div className="space-y-4">
-                <div className="bg-white/5 rounded-lg p-4">
-                  <h4 className="text-white font-medium mb-3">👥 User Activity Insights</h4>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <div className="text-white/60 text-xs">Active Users</div>
-                      <div className="text-lg font-bold text-blue-400">{logsInsights.userActivity.activeUsers}</div>
-                    </div>
-                    <div>
-                      <div className="text-white/60 text-xs">Peak Hour</div>
-                      <div className="text-lg font-bold text-green-400">{logsInsights.userActivity.peakHour}</div>
-                    </div>
-                    <div>
-                      <div className="text-white/60 text-xs">Messages/Hour</div>
-                      <div className="text-lg font-bold text-purple-400">{logsInsights.userActivity.messagesSentLastHour}</div>
-                    </div>
-                    <div>
-                      <div className="text-white/60 text-xs">New Users</div>
-                      <div className="text-lg font-bold text-emerald-400">{logsInsights.userActivity.newRegistrations}</div>
-                    </div>
-                  </div>
-                </div>
-
                 {logsInsights.performanceInsights.length > 0 && (
                   <div className="bg-white/5 rounded-lg p-4">
                     <h4 className="text-white font-medium mb-3">⚡ Performance Insights</h4>

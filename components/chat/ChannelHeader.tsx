@@ -58,31 +58,28 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
 
     async function loadData() {
       try {
-        // TODO: Create API route for fetching users
-        // For now, users endpoint is not migrated yet
         // Load all users
-        // const usersResponse = await fetch('/api/users');
-        // if (usersResponse.ok) {
-        //   const usersData = await usersResponse.json();
-        //   setAllUsers(usersData.users || []);
-        // }
+        const usersResponse = await fetch('/api/users');
+        if (usersResponse.ok) {
+          const usersData = await usersResponse.json();
+          setAllUsers(usersData.users || []);
+        }
 
-        // TODO: Create API route for channel details
         // Load channel details with members
-        // const channelResponse = await fetch(`/api/chat/channels/${channelId}`);
-        // if (channelResponse.ok) {
-        //   const channelData = await channelResponse.json();
-        //   if (channelData.channel && channelData.channel.members) {
-        //     const members = channelData.channel.members.map((m: any) => ({
-        //       id: m.user_id,
-        //       name: m.name || 'Unknown',
-        //       email: m.email || '',
-        //       avatar: m.avatar_url || m.avatar,
-        //       status: m.status || 'offline' as const
-        //     }));
-        //     setChannelMembers(members);
-        //   }
-        // }
+        const channelResponse = await fetch(`/api/chat/channels/${channelId}`);
+        if (channelResponse.ok) {
+          const channelData = await channelResponse.json();
+          if (channelData.channel && channelData.channel.members) {
+            const members = channelData.channel.members.map((m: any) => ({
+              id: m.user_id || m.id,
+              name: m.name || 'Unknown',
+              email: m.email || '',
+              avatar: m.avatar_url || m.avatar,
+              status: m.status || 'offline' as const
+            }));
+            setChannelMembers(members);
+          }
+        }
       } catch (error: any) {
         console.error('Failed to load data:', error);
         // Set empty arrays on error to prevent UI breaking
@@ -126,21 +123,21 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
     console.log('Adding member:', user.id, 'to channel:', channelId);
 
     try {
-      // TODO: Create API route for adding channel members
-      // const response = await fetch(`/api/chat/channels/${channelId}/members`, {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ user_id: user.id })
-      // });
-      // if (response.ok) {
-      //   setChannelMembers(prev => [...prev, user]);
-      //   setSearchQuery('');
-      //   setSearchResults([]);
-      //   console.log('✅ Added member successfully:', user);
-      // } else {
-      //   throw new Error('Failed to add member');
-      // }
-      console.warn('Add member API route not yet implemented');
+      const response = await fetch(`/api/chat/channels/${channelId}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user.id })
+      });
+
+      if (response.ok) {
+        setChannelMembers(prev => [...prev, user]);
+        setSearchQuery('');
+        setSearchResults([]);
+        console.log('✅ Added member successfully:', user);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to add member');
+      }
     } catch (error: any) {
       console.error('❌ Failed to add member:', error);
       alert(`Failed to add member: ${error.message}`);
@@ -151,20 +148,20 @@ export function ChannelHeader({ channelId, channelName, memberCount, onUpdateCha
     if (!isAuthenticated) return;
 
     try {
-      // TODO: Create API route for removing channel members
-      // const response = await fetch(`/api/chat/channels/${channelId}/members/${userId}`, {
-      //   method: 'DELETE'
-      // });
-      // if (response.ok) {
-      //   setChannelMembers(prev => prev.filter(m => m.id !== userId));
-      //   console.log('Removed member:', userId);
-      // } else {
-      //   throw new Error('Failed to remove member');
-      // }
-      console.warn('Remove member API route not yet implemented');
+      const response = await fetch(`/api/chat/channels/${channelId}/members?userId=${encodeURIComponent(userId)}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        setChannelMembers(prev => prev.filter(m => m.id !== userId));
+        console.log('✅ Removed member:', userId);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to remove member');
+      }
     } catch (error: any) {
-      console.error('Failed to remove member:', error);
-      alert('Failed to remove member from channel');
+      console.error('❌ Failed to remove member:', error);
+      alert(`Failed to remove member: ${error.message}`);
     }
   }
 
