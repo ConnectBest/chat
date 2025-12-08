@@ -38,48 +38,63 @@ export function ChannelSidebar() {
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    // Initialize DMs from localStorage on mount
-    const storedDMs = JSON.parse(localStorage.getItem('activeDMs') || '[]');
-    if (storedDMs.length > 0) {
-      setDirectMessages(storedDMs);
-    }
-
     const fetchChannels = async () => {
       try {
-        console.log('Fetching channels via Next.js API route');
+        // OPTIMIZATION: Check cache first to avoid duplicate API calls
+        const channelsCache = sessionStorage.getItem('chat_channels_cache');
+        if (channelsCache) {
+          try {
+            const cacheData = JSON.parse(channelsCache);
+            // Use cached data if less than 30 seconds old
+            if (Date.now() - cacheData.timestamp < 30000) {
+              setChannels(cacheData.channels || []);
+              return;
+            }
+          } catch (e) {
+            // Cache read failed, continue to fetch
+          }
+        }
+
         const response = await fetch('/api/chat/channels');
 
-        console.log('Channels response status:', response.status);
         if (response.ok) {
           const data = await response.json();
-          console.log('Channels data:', data);
-          setChannels(data.channels || []);
+          const channels = data.channels || [];
+          setChannels(channels);
+
+          // Update cache with fresh data
+          try {
+            sessionStorage.setItem('chat_channels_cache', JSON.stringify({
+              channels,
+              timestamp: Date.now()
+            }));
+          } catch (e) {
+            // Cache save failed, not critical
+          }
         } else {
           const errorData = await response.json().catch(() => ({}));
-          console.error('Failed to fetch channels:', response.status, errorData);
+          console.error('❌ [ChannelSidebar] Failed to fetch channels:', response.status, errorData);
           setChannels([]);
         }
       } catch (error) {
-        console.error('Error fetching channels:', error);
+        console.error('❌ [ChannelSidebar] Error fetching channels:', error);
         setChannels([]);
       }
     };
 
     const fetchDMConversations = async () => {
       try {
-        console.log('Fetching DM conversations via Next.js API route');
+        // Check localStorage cache first (DMs are already cached there)
+        const storedDMs = JSON.parse(localStorage.getItem('activeDMs') || '[]');
+
         const response = await fetch('/api/dm/conversations');
-        
+
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }
-        
-        const data = await response.json();
-        console.log('DM conversations response:', data);
-        const apiConversations = data.conversations || [];
 
-        // Get locally stored DMs (from when user clicked on users)
-        const storedDMs = JSON.parse(localStorage.getItem('activeDMs') || '[]');
+        const data = await response.json();
+        const apiConversations = data.conversations || [];
 
         // Merge API conversations with stored DMs, API takes precedence
         const allDMs = [...storedDMs];
@@ -118,8 +133,8 @@ export function ChannelSidebar() {
         localStorage.setItem('activeDMs', JSON.stringify(allDMs));
 
       } catch (error: any) {
-        console.error('Error fetching DM conversations:', error);
-        console.error('Error details:', error.response?.data);
+        console.error('❌ [ChannelSidebar] Error fetching DM conversations:', error);
+        console.error('❌ [ChannelSidebar] Error details:', error.response?.data);
 
         // Fallback to stored DMs if API fails
         const storedDMs = JSON.parse(localStorage.getItem('activeDMs') || '[]');
@@ -127,8 +142,12 @@ export function ChannelSidebar() {
       }
     };
 
-    fetchChannels();
-    fetchDMConversations();
+    // OPTIMIZATION: Use a small delay to let chat page set cache first if they're racing
+    const delay = Math.random() * 100; // Random delay 0-100ms to prevent race conditions
+    setTimeout(() => {
+      fetchChannels();
+      fetchDMConversations();
+    }, delay);
 
     // Note: Removed event listener that was causing excessive API calls
     // Unread counts will be updated on next natural refresh

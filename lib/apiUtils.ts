@@ -14,19 +14,10 @@ import type { NextRequest } from 'next/server';
  * @returns Object containing session and headers with JWT token, or null if not authenticated
  */
 export async function getUserHeaders(request: NextRequest) {
-  console.log('[API Utils] 🔍 getUserHeaders called for:', request.nextUrl?.pathname);
-
   try {
     // CRITICAL FIX: Use proper NextAuth v5 auth() function signature
     // NextAuth v5 requires a proper request/response pair, not arbitrary objects
     const session = await auth();
-    console.log('[API Utils] Session result:', {
-      hasSession: !!session,
-      hasUser: !!session?.user,
-      userEmail: session?.user?.email,
-      sessionKeys: session ? Object.keys(session) : [],
-      userKeys: session?.user ? Object.keys(session.user) : []
-    });
 
     if (!session?.user) {
       console.error('[API Utils] ❌ No authenticated session found');
@@ -37,20 +28,11 @@ export async function getUserHeaders(request: NextRequest) {
     const accessToken = (session.user as any).accessToken;
     const flaskAccessToken = (session.user as any).flaskAccessToken;
 
-    console.log('[API Utils] Token analysis:', {
-      hasAccessToken: !!accessToken,
-      hasFlaskAccessToken: !!flaskAccessToken,
-      accessTokenLength: accessToken?.length || 0,
-      flaskTokenLength: flaskAccessToken?.length || 0,
-      userKeys: Object.keys(session.user || {})
-    });
-
     // Try both token fields
     const jwtToken = flaskAccessToken || accessToken;
 
     if (!jwtToken) {
       console.error('[API Utils] ❌ No JWT token found in session for user:', session.user.email);
-      console.error('[API Utils] Session.user object:', JSON.stringify(session.user, null, 2));
       return null;
     }
 
@@ -64,13 +46,6 @@ export async function getUserHeaders(request: NextRequest) {
       'X-User-Email': session.user.email || '',
       'X-User-Role': (session.user as any).role || 'user'
     };
-
-    console.log('[API Utils] ✅ Generated authenticated headers:', {
-      userEmail: session.user.email,
-      hasAuthHeader: !!headers['Authorization'],
-      authHeaderStart: headers['Authorization']?.substring(0, 20) + '...',
-      headerKeys: Object.keys(headers)
-    });
 
     return { session, headers };
   } catch (error) {

@@ -24,17 +24,45 @@ export function ProfileMenu() {
   const [currentStatus, setCurrentStatus] = useState<UserStatus>('available');
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Fetch user data
+  // Fetch user data with caching to prevent redundant API calls
   useEffect(() => {
     const fetchUser = async () => {
       if (!isAuthenticated) return;
 
       try {
+        // OPTIMIZATION: Check cache first to avoid duplicate API calls
+        const userCache = sessionStorage.getItem('user_data_cache');
+        if (userCache) {
+          try {
+            const cacheData = JSON.parse(userCache);
+            // Use cached data if less than 5 minutes old
+            if (Date.now() - cacheData.timestamp < 300000) {
+              console.log('📦 [ProfileMenu] Using cached user data');
+              setUser(cacheData.user);
+              return;
+            }
+          } catch (e) {
+            console.log('⚠️ [ProfileMenu] User cache read failed');
+          }
+        }
+
+        console.log('🔄 [ProfileMenu] Fetching user data via API');
         const response = await fetch('/api/auth/me');
 
         if (response.ok) {
           const data = await response.json();
           setUser(data.user);
+
+          // Cache the user data with timestamp
+          try {
+            sessionStorage.setItem('user_data_cache', JSON.stringify({
+              user: data.user,
+              timestamp: Date.now()
+            }));
+            console.log('✅ [ProfileMenu] Cached user data');
+          } catch (e) {
+            console.log('⚠️ [ProfileMenu] Failed to cache user data');
+          }
         }
       } catch (error) {
         console.error('Error fetching user:', error);

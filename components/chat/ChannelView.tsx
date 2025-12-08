@@ -146,29 +146,84 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
   useEffect(() => {
     let mounted = true;
     
-    // Fetch current user info
+    // Fetch current user info with caching
     const fetchCurrentUser = async () => {
       try {
+        // OPTIMIZATION: Check cache first to avoid duplicate API calls
+        const userCache = sessionStorage.getItem('user_data_cache');
+        if (userCache) {
+          try {
+            const cacheData = JSON.parse(userCache);
+            // Use cached data if less than 5 minutes old
+            if (Date.now() - cacheData.timestamp < 300000) {
+              console.log('📦 [ChannelView] Using cached user data for current user');
+              if (cacheData.user && mounted) {
+                setCurrentUserId(cacheData.user.id);
+              }
+              return;
+            }
+          } catch (e) {
+            console.log('⚠️ [ChannelView] User cache read failed');
+          }
+        }
+
+        console.log('🔄 [ChannelView] Fetching current user data via API');
         const data = await api.me();
         if (data.user && mounted) {
           setCurrentUserId(data.user.id);
+
+          // Cache the user data with timestamp
+          try {
+            sessionStorage.setItem('user_data_cache', JSON.stringify({
+              user: data.user,
+              timestamp: Date.now()
+            }));
+          } catch (e) {
+            console.log('⚠️ [ChannelView] Failed to cache user data');
+          }
         }
       } catch (error) {
         console.error('Error fetching current user:', error);
       }
     };
-    
+
     fetchCurrentUser();
     
-    // Fetch channel details to get the name
+    // Fetch channel details to get the name with caching
     const fetchChannelDetails = async () => {
       if (!isDM) {
         try {
-          const response = await fetch('/api/chat/channels');
+          // OPTIMIZATION: Check cached channels first
+          const channelsCache = sessionStorage.getItem('chat_channels_cache');
+          if (channelsCache) {
+            try {
+              const cacheData = JSON.parse(channelsCache);
+              // Use cached data if less than 30 seconds old
+              if (Date.now() - cacheData.timestamp < 30000) {
+                console.log('📦 [ChannelView] Using cached channels for channel name');
+                const channel = cacheData.channels?.find((c: any) => c.id === channelId || c._id === channelId);
+                if (channel && mounted) {
+                  setChannelName(channel.name);
+                  return;
+                }
+              }
+            } catch (e) {
+              console.log('⚠️ [ChannelView] Channels cache read failed');
+            }
+          }
+
+          console.log('🔄 [ChannelView] Fetching specific channel details via API');
+          // More efficient: Use specific channel API if available, otherwise fall back to full list
+          const response = await fetch(`/api/chat/channels/${channelId}`).catch(() =>
+            // Fallback to full list if specific endpoint doesn't exist
+            fetch('/api/chat/channels')
+          );
 
           if (response.ok) {
             const data = await response.json();
-            const channel = data.channels?.find((c: any) => c.id === channelId || c._id === channelId);
+
+            // Handle both specific channel response and full channels list response
+            const channel = data.channel || data.channels?.find((c: any) => c.id === channelId || c._id === channelId);
             if (channel && mounted) {
               setChannelName(channel.name);
             }
@@ -182,14 +237,39 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
     fetchChannelDetails();
     
     if (isDM && dmUserId) {
-      // Fetch DM user data from backend
+      // Fetch DM user data with caching to avoid fetching all users
       const fetchDmUser = async () => {
         try {
-          const response = await fetch('/api/users');
+          // OPTIMIZATION: Check if DM user data is already cached in localStorage activeDMs
+          const storedDMs = JSON.parse(localStorage.getItem('activeDMs') || '[]');
+          const cachedDmUser = storedDMs.find((dm: any) => dm.userId === dmUserId);
+
+          if (cachedDmUser && mounted) {
+            console.log('📦 [ChannelView] Using cached DM user data');
+            setDmUserName(cachedDmUser.userName);
+            setDmUserData({
+              id: cachedDmUser.userId,
+              name: cachedDmUser.userName,
+              email: cachedDmUser.userId + '@example.com', // Fallback email
+              avatar: cachedDmUser.userAvatar,
+              status: cachedDmUser.status || 'offline',
+              phone: undefined,
+              statusMessage: undefined
+            });
+            return;
+          }
+
+          console.log('🔄 [ChannelView] Fetching specific DM user data via API');
+          // More efficient: Use specific user API if available, otherwise fall back to full list
+          const response = await fetch(`/api/users/${dmUserId}`).catch(() =>
+            // Fallback to full users list if specific endpoint doesn't exist
+            fetch('/api/users')
+          );
 
           if (response.ok) {
             const data = await response.json();
-            const user = data.users?.find((u: any) => u.id === dmUserId);
+            // Handle both specific user response and full users list response
+            const user = data.user || data.users?.find((u: any) => u.id === dmUserId);
             if (user && mounted) {
               setDmUserName(user.name);
               setDmUserData({
@@ -201,6 +281,14 @@ export function ChannelView({ channelId, isDM = false, dmUserId }: { channelId: 
                 phone: user.phone,
                 statusMessage: user.statusMessage
               });
+
+              // Update the cached DM data with fresh user info
+              const updatedDMs = storedDMs.map((dm: any) =>
+                dm.userId === dmUserId
+                  ? { ...dm, userName: user.name, userAvatar: user.avatar, status: user.status || 'offline' }
+                  : dm
+              );
+              localStorage.setItem('activeDMs', JSON.stringify(updatedDMs));
             }
           }
         } catch (error) {

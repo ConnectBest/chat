@@ -233,9 +233,9 @@ class ChannelList(Resource):
             channel_type = data.get('type', 'public')
 
             # Validate channel name
-            validation_result = validate_channel_name(name)
-            if validation_result is not True:
-                return {'error': validation_result}, 400
+            is_valid, error_message = validate_channel_name(name)
+            if not is_valid:
+                return {'error': error_message}, 400
 
             db = current_app.db
             channel_model = Channel(db)

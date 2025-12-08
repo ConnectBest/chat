@@ -7,7 +7,6 @@ import { useSession } from 'next-auth/react';
 export default function ChatPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const [channels, setChannels] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -40,42 +39,82 @@ export default function ChatPage() {
           return;
         }
 
-        console.log('🚀 [Chat] Valid session found, fetching channels and DMs...');
+        console.log('🚀 [Chat] Valid session found, checking for cached conversation data...');
 
-        // Fetch both channels and DM conversations using Next.js API routes
-        // These routes handle NextAuth authentication internally
-        const [channelsRes, dmsRes] = await Promise.all([
-          fetch('/api/chat/channels'),
-          fetch('/api/dm/conversations')
-        ]);
+        // OPTIMIZATION: Check if ChannelSidebar has already cached the data
+        // This prevents duplicate API calls when components mount simultaneously
+        let cachedChannels: any[] = [];
+        let cachedDMs: any[] = [];
 
-        console.log('📡 [Chat] API responses:', {
-          channels: { status: channelsRes.status, ok: channelsRes.ok },
-          dms: { status: dmsRes.status, ok: dmsRes.ok }
-        });
+        try {
+          const channelsCache = sessionStorage.getItem('chat_channels_cache');
+          const dmsCache = localStorage.getItem('activeDMs');
 
-        if (channelsRes.status === 401 || dmsRes.status === 401) {
-          console.log('🚫 [Chat] Got 401, session invalid - redirecting to login');
-          router.push('/login');
-          return;
+          if (channelsCache) {
+            const cacheData = JSON.parse(channelsCache);
+            // Use cached data if less than 5 seconds old
+            if (Date.now() - cacheData.timestamp < 5000) {
+              cachedChannels = cacheData.channels || [];
+              console.log('📦 [Chat] Using cached channels:', cachedChannels.length);
+            }
+          }
+
+          if (dmsCache) {
+            cachedDMs = JSON.parse(dmsCache);
+            console.log('📦 [Chat] Using cached DMs:', cachedDMs.length);
+          }
+        } catch (e) {
+          console.log('⚠️ [Chat] Cache read failed, fetching fresh data');
         }
 
-        const channelsData = channelsRes.ok ? await channelsRes.json() : { channels: [] };
-        const dmsData = dmsRes.ok ? await dmsRes.json() : { conversations: [] };
-        
-        const channels = channelsData.channels || [];
-        const dms = dmsData.conversations || [];
-        
-        setChannels(channels);
+        // Only fetch if we don't have recent cached data
+        if (cachedChannels.length === 0 || cachedDMs.length === 0) {
+          console.log('🔄 [Chat] Fetching fresh data...');
+
+          const [channelsRes, dmsRes] = await Promise.all([
+            cachedChannels.length > 0 ? Promise.resolve({ ok: true, json: () => Promise.resolve({ channels: cachedChannels }) }) : fetch('/api/chat/channels'),
+            cachedDMs.length > 0 ? Promise.resolve({ ok: true, json: () => Promise.resolve({ conversations: cachedDMs }) }) : fetch('/api/dm/conversations')
+          ]);
+
+          console.log('📡 [Chat] API responses:', {
+            channels: { status: channelsRes.status, ok: channelsRes.ok },
+            dms: { status: dmsRes.status, ok: dmsRes.ok }
+          });
+
+          if (channelsRes.status === 401 || dmsRes.status === 401) {
+            console.log('🚫 [Chat] Got 401, session invalid - redirecting to login');
+            router.push('/login');
+            return;
+          }
+
+          const channelsData = channelsRes.ok ? await channelsRes.json() : { channels: [] };
+          const dmsData = dmsRes.ok ? await dmsRes.json() : { conversations: [] };
+
+          cachedChannels = channelsData.channels || [];
+          cachedDMs = dmsData.conversations || [];
+
+          // Cache the fresh data
+          try {
+            sessionStorage.setItem('chat_channels_cache', JSON.stringify({
+              channels: cachedChannels,
+              timestamp: Date.now()
+            }));
+            localStorage.setItem('activeDMs', JSON.stringify(cachedDMs));
+          } catch (e) {
+            console.log('⚠️ [Chat] Failed to cache data');
+          }
+        } else {
+          console.log('📦 [Chat] Using cached data, skipping API calls');
+        }
 
         // Combine channels and DMs, sort by most recent activity
         const allConversations = [
-          ...channels.map((ch: any) => ({
+          ...cachedChannels.map((ch: any) => ({
             type: 'channel',
             id: ch.id || ch._id,
             lastActivity: ch.last_message_at || ch.created_at || new Date(0).toISOString()
           })),
-          ...dms.map((dm: any) => ({
+          ...cachedDMs.map((dm: any) => ({
             type: 'dm',
             id: dm.user_id,
             lastActivity: dm.last_message_at || new Date(0).toISOString()
@@ -83,7 +122,7 @@ export default function ChatPage() {
         ];
 
         // Sort by most recent activity
-        allConversations.sort((a, b) => 
+        allConversations.sort((a, b) =>
           new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime()
         );
 
@@ -110,7 +149,7 @@ export default function ChatPage() {
     fetchAndRedirect();
   }, [router, session, status]);
 
-  if (status === 'loading' || loading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
@@ -123,7 +162,21 @@ export default function ChatPage() {
     );
   }
 
-  if (channels.length === 0) {
+  // Check if no channels are available
+  const hasChannels = (() => {
+    try {
+      const channelsCache = sessionStorage.getItem('chat_channels_cache');
+      if (channelsCache) {
+        const cacheData = JSON.parse(channelsCache);
+        return (cacheData.channels || []).length > 0;
+      }
+    } catch (e) {
+      // Fallback check
+    }
+    return false;
+  })();
+
+  if (!hasChannels) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center max-w-md p-8">
