@@ -1,16 +1,27 @@
 import { NextResponse } from 'next/server';
+import { getUserHeaders } from '@/lib/apiUtils';
+import type { NextRequest } from 'next/server';
 
 // Use internal backend URL for server-side API route communication
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5001';
 
-export async function GET(request: Request) {
-  const authHeader = request.headers.get('authorization');
-
+export async function GET(request: NextRequest) {
   try {
     console.log('[Metrics API] Fetching system metrics, backend URL:', BACKEND_URL);
 
+    // Get authenticated headers with JWT token
+    const authData = await getUserHeaders(request);
+
+    if (!authData) {
+      console.error('[Metrics API] No authenticated session');
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const response = await fetch(`${BACKEND_URL}/api/metrics/system`, {
-      headers: authHeader ? { 'Authorization': authHeader } : {},
+      headers: authData.headers,
     });
 
     if (!response.ok) {

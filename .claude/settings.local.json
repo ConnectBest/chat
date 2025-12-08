@@ -58,7 +58,8 @@
       "Bash(grep:*)",
       "Bash(curl:*)",
       "Bash(./scripts/verify-jwt-config.sh:*)",
-      "Bash(./scripts/setup-jwt-secret.sh:*)"
+      "Bash(./scripts/setup-jwt-secret.sh:*)",
+      "Bash(python test_nextjs_patterns.py:*)"
     ],
     "deny": [],
     "ask": []

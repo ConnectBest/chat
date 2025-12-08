@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { getUserHeaders } from '@/lib/apiUtils';
 import type { NextRequest } from 'next/server';
 
 // Use internal backend URL for server-side API route communication
@@ -9,10 +9,10 @@ export async function GET(request: NextRequest) {
   try {
     console.log('[Costs API] Fetching cost metrics, backend URL:', BACKEND_URL);
 
-    // Get current session to verify authentication (NextAuth v5 API route style)
-    const session = await auth(request as any, {} as any);
+    // Get authenticated headers with JWT token
+    const authData = await getUserHeaders(request);
 
-    if (!session?.user) {
+    if (!authData) {
       console.error('[Costs API] No authenticated session');
       return NextResponse.json(
         { error: 'Authentication required' },
@@ -20,16 +20,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Create headers with user info for Flask backend
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'X-User-ID': (session.user as any).id,
-      'X-User-Email': session.user.email || '',
-      'X-User-Role': (session.user as any).role || 'user'
-    };
-
     const response = await fetch(`${BACKEND_URL}/api/metrics/costs`, {
-      headers,
+      headers: authData.headers,
     });
 
     if (!response.ok) {
