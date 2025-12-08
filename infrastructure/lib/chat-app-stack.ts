@@ -483,13 +483,28 @@ export class ChatAppStack extends cdk.Stack {
       action: elbv2.ListenerAction.forward([frontendTargetGroup])
     });
 
-    // Priority 100: Route all other /api/* to backend (Flask)
-    httpsListener.addAction('ApiRoute', {
+    // Priority 50: Route Flask-only endpoints directly to backend
+    httpsListener.addAction('FlaskDirectRoute', {
+      priority: 50,
+      conditions: [
+        elbv2.ListenerCondition.pathPatterns([
+          '/api/health',           // Health check endpoint
+          '/api/metrics/health',   // Public metrics health endpoint
+          '/docs*',                // Swagger UI documentation
+          '/socket.io/*',          // Socket.IO WebSocket connections
+          '/static/*'              // Static file serving
+        ])
+      ],
+      action: elbv2.ListenerAction.forward([backendTargetGroup])
+    });
+
+    // Priority 100: Route ALL other /api/* to frontend (Next.js API routes for authentication)
+    httpsListener.addAction('NextJSApiRoute', {
       priority: 100,
       conditions: [
         elbv2.ListenerCondition.pathPatterns(['/api/*'])
       ],
-      action: elbv2.ListenerAction.forward([backendTargetGroup])
+      action: elbv2.ListenerAction.forward([frontendTargetGroup])
     });
 
     // Security Group for ECS Tasks
