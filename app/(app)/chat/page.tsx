@@ -72,8 +72,8 @@ export default function ChatPage() {
           console.log('🔄 [Chat] Fetching fresh data...');
 
           const [channelsRes, dmsRes] = await Promise.all([
-            cachedChannels.length > 0 ? Promise.resolve({ ok: true, json: () => Promise.resolve({ channels: cachedChannels }) }) : fetch('/api/chat/channels'),
-            cachedDMs.length > 0 ? Promise.resolve({ ok: true, json: () => Promise.resolve({ conversations: cachedDMs }) }) : fetch('/api/dm/conversations')
+            cachedChannels.length > 0 ? Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ channels: cachedChannels }) }) : fetch('/api/chat/channels'),
+            cachedDMs.length > 0 ? Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ conversations: cachedDMs }) }) : fetch('/api/dm/conversations')
           ]);
 
           console.log('📡 [Chat] API responses:', {
