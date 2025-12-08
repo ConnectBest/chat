@@ -199,9 +199,19 @@ def create_app():
 
     @app.after_request
     def log_response_info(response):
-        # Always log response status for observability
-        status_emoji = "✅" if response.status_code < 300 else "⚠️" if response.status_code < 500 else "❌"
-        logger.info(f"📤 HTTP Response: {request.method} {request.path} -> {response.status_code} {status_emoji}")
+        # Reduce health check logging noise - only log every 20 requests or if unhealthy
+        is_health_check = request.path == '/api/health'
+        should_log_health = not is_health_check or (
+            is_health_check and (
+                response.status_code >= 300 or  # Always log unhealthy responses
+                hash(request.remote_addr or '') % 20 == 0  # Log ~5% of health checks based on IP
+            )
+        )
+
+        if should_log_health:
+            # Always log response status for observability
+            status_emoji = "✅" if response.status_code < 300 else "⚠️" if response.status_code < 500 else "❌"
+            logger.info(f"📤 HTTP Response: {request.method} {request.path} -> {response.status_code} {status_emoji}")
 
         # Log more details in debug mode
         if config.LOG_LEVEL == 'DEBUG':
@@ -343,9 +353,33 @@ def create_app():
         Returns:
             JSON response with status
         """
+        # Load build info if available
+        build_info = {}
+        try:
+            import os
+            import json
+            build_info_path = os.path.join(os.path.dirname(__file__), '..', 'build-info.json')
+            if os.path.exists(build_info_path):
+                with open(build_info_path, 'r') as f:
+                    build_info = json.load(f)
+        except Exception:
+            # Fallback to environment variables or defaults
+            build_info = {
+                'version': '1.0.0',
+                'gitCommit': os.environ.get('GIT_COMMIT', 'unknown'),
+                'gitShort': os.environ.get('GIT_COMMIT_SHORT', os.environ.get('GIT_COMMIT', 'unknown')[:7] if os.environ.get('GIT_COMMIT') else 'unknown'),
+                'gitBranch': os.environ.get('GIT_BRANCH', 'unknown'),
+                'buildTime': 'unknown'
+            }
+
         health_status = {
             'status': 'healthy',
             'timestamp': datetime.utcnow().isoformat(),
+            'version': build_info.get('version', '1.0.0'),
+            'commit': build_info.get('gitCommit', 'unknown'),
+            'commitShort': build_info.get('gitShort', 'unknown'),
+            'branch': build_info.get('gitBranch', 'unknown'),
+            'buildTime': build_info.get('buildTime', 'unknown'),
             'flask_env': app.config.get('FLASK_ENV', 'unknown'),
             'debug': app.config.get('DEBUG', 'unknown')
         }

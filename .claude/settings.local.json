@@ -59,7 +59,8 @@
       "Bash(curl:*)",
       "Bash(./scripts/verify-jwt-config.sh:*)",
       "Bash(./scripts/setup-jwt-secret.sh:*)",
-      "Bash(python test_nextjs_patterns.py:*)"
+      "Bash(python test_nextjs_patterns.py:*)",
+      "Bash(node scripts/generate-build-info.js:*)"
     ],
     "deny": [],
     "ask": []

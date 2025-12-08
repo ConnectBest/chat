@@ -31,6 +31,7 @@ COPY tsconfig.json ./
 COPY next.config.js* ./
 COPY postcss.config.js* ./
 COPY tailwind.config.js* ./
+COPY scripts/ ./scripts/
 COPY app/ ./app/
 COPY components/ ./components/
 COPY lib/ ./lib/
@@ -57,7 +58,7 @@ ENV GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
 # Set npm registry to public registry to avoid company/internal registry issues
 RUN npm config set registry https://registry.npmjs.org/
 
-# Build Next.js app
+# Build Next.js app (prebuild hook will generate build info)
 RUN \
   if [ -f yarn.lock ]; then yarn build; \
   elif [ -f package-lock.json ]; then npm run build; \
