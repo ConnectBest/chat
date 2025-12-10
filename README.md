@@ -1,5 +1,9 @@
 # ConnectBest Chat: A Distributed Systems Implementation
 
+## Link
+- [Presentation Slides](https://docs.google.com/presentation/d/1bnjNxdIIrKFUIonSFIaIUQIu8zRMyUCiK9ghIna_kn8/edit?pli=1&slide=id.p1#slide=id.p1)
+- [Final Project Report](https://docs.google.com/document/d/174vupWYbuV8o3H0LmVFzYAQOLqnzJ-yZLEbtoVeU47M/edit?tab=t.0)
+
 ## Executive Summary
 
 This repository demonstrates **production-grade distributed systems architecture** through a real-time team communication platform. Built using microservices decomposition, event-driven patterns, and cloud-native deployment strategies, it showcases industry-standard practices for building scalable, fault-tolerant systems that address the fundamental challenges of distributed computing.
