@@ -79,8 +79,8 @@ def init_database():
         print("✅ Messages collection configured")
         
         # 5. Message Reactions Collection
-        print("\n❤️  Setting up 'message_reactions' collection...")
-        reactions = db['message_reactions']
+        print("\n❤️  Setting up 'reactions' collection...")
+        reactions = db['reactions']
         reactions.create_index(
             [('message_id', ASCENDING), ('user_id', ASCENDING)],
             unique=True
