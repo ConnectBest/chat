@@ -10,6 +10,9 @@ This directory contains all documentation for the ConnectBest Chat application, 
 - **[websocket-readme.md](setup/websocket-readme.md)** - WebSocket API deployment and configuration
 - **[MONOREPO_README.md](setup/MONOREPO_README.md)** - Monorepo structure overview
 
+### 📚 Technology & Resources
+- **[BACKEND_TECH_STACK.md](../BACKEND_TECH_STACK.md)** - Comprehensive backend technology stack (履歷參考 / Resume reference)
+
 ### 🏗️ Architecture & Design
 - **[FRONTEND_DOCS.md](architecture/FRONTEND_DOCS.md)** - Frontend architecture, components, and design patterns
 - **[backend-architecture.md](architecture/backend-architecture.md)** - Backend architecture documentation

@@ -3,6 +3,7 @@
 ## Link
 - [Presentation Slides](https://docs.google.com/presentation/d/1bnjNxdIIrKFUIonSFIaIUQIu8zRMyUCiK9ghIna_kn8/edit?pli=1&slide=id.p1#slide=id.p1)
 - [Final Project Report](https://docs.google.com/document/d/174vupWYbuV8o3H0LmVFzYAQOLqnzJ-yZLEbtoVeU47M/edit?tab=t.0)
+- **[📚 Backend Technology Stack (後端技術堆疊)](./BACKEND_TECH_STACK.md)** - Comprehensive guide for resume writing
 
 ## Executive Summary
 
